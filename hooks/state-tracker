@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+#
+# software-engineer-agent
+# Copyright (C) 2026 demwick
+# Licensed under the GNU Affero General Public License v3.0 or later.
+# See LICENSE in the repository root for the full license text.
+#
+# PostToolUse hook for software-engineer-agent.
+# Keeps .sea/state.json's last_edit timestamp fresh whenever Claude
+# edits a file in a project that's already initialized with software-engineer-agent.
+
+set -euo pipefail
+
+ACTION="${1:-file-touched}"
+
+STATE_DIR=".sea"
+STATE_FILE="${STATE_DIR}/state.json"
+
+# Only operate in initialized projects. In every other case, silently no-op.
+[ -f "$STATE_FILE" ] || exit 0
+command -v jq >/dev/null 2>&1 || exit 0
+
+NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+case "$ACTION" in
+    file-touched)
+        TMP=$(mktemp)
+        if jq --arg ts "$NOW" '.last_edit = $ts' "$STATE_FILE" > "$TMP" 2>/dev/null; then
+            mv "$TMP" "$STATE_FILE"
+        else
+            rm -f "$TMP"
+        fi
+        ;;
+    *)
+        # Unknown action — log to stderr (goes to debug log) and exit cleanly.
+        echo "software-engineer-agent state-tracker: unknown action '${ACTION}'" >&2
+        ;;
+esac
+
+exit 0

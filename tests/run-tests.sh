@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+#
+# software-engineer-agent
+# Copyright (C) 2026 demwick
+# Licensed under the GNU Affero General Public License v3.0 or later.
+# See LICENSE in the repository root for the full license text.
+#
+# Self-contained test runner for plugin shell scripts.
+# No external test framework. Run from repo root: bash tests/run-tests.sh
+
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export CLAUDE_PLUGIN_ROOT="$REPO_ROOT"
+
+PASS=0
+FAIL=0
+FAILURES=()
+
+assert() {
+    local name="$1"
+    local actual="$2"
+    local expected="$3"
+    if [ "$actual" = "$expected" ]; then
+        PASS=$((PASS+1))
+        echo "  ok   $name"
+    else
+        FAIL=$((FAIL+1))
+        FAILURES+=("$name: expected [$expected] got [$actual]")
+        echo "  FAIL $name"
+    fi
+}
+
+assert_contains() {
+    local name="$1"
+    local haystack="$2"
+    local needle="$3"
+    if echo "$haystack" | grep -q -- "$needle"; then
+        PASS=$((PASS+1))
+        echo "  ok   $name"
+    else
+        FAIL=$((FAIL+1))
+        FAILURES+=("$name: [$haystack] does not contain [$needle]")
+        echo "  FAIL $name"
+    fi
+}
+
+mktmpdir() { mktemp -d 2>/dev/null || mktemp -d -t sea-test; }
+
+# ---------- detect-test.sh ----------
+echo "detect-test.sh"
+
+t=$(mktmpdir)
+out=$(bash "$REPO_ROOT/scripts/detect-test.sh" "$t" 2>/dev/null; echo "EXIT:$?")
+assert_contains "empty dir → exit 1" "$out" "EXIT:1"
+
+t=$(mktmpdir); echo '{"scripts":{"test":"jest"}}' > "$t/package.json"
+out=$(bash "$REPO_ROOT/scripts/detect-test.sh" "$t")
+assert "package.json (npm) → npm test" "$out" "npm test"
+
+t=$(mktmpdir); echo '{"scripts":{"test":"jest"}}' > "$t/package.json"; touch "$t/pnpm-lock.yaml"
+out=$(bash "$REPO_ROOT/scripts/detect-test.sh" "$t")
+assert "package.json + pnpm-lock → pnpm test" "$out" "pnpm test"
+
+t=$(mktmpdir); echo '{"scripts":{"test":"jest"}}' > "$t/package.json"; touch "$t/yarn.lock"
+out=$(bash "$REPO_ROOT/scripts/detect-test.sh" "$t")
+assert "package.json + yarn.lock → yarn test" "$out" "yarn test"
+
+t=$(mktmpdir); echo '{"scripts":{"test":"bun test"}}' > "$t/package.json"; touch "$t/bun.lockb"
+out=$(bash "$REPO_ROOT/scripts/detect-test.sh" "$t")
+assert "package.json + bun.lockb → bun test" "$out" "bun test"
+
+t=$(mktmpdir); echo "module x" > "$t/go.mod"
+out=$(bash "$REPO_ROOT/scripts/detect-test.sh" "$t")
+assert "go.mod → go test ./..." "$out" "go test ./..."
+
+t=$(mktmpdir); echo "[package]" > "$t/Cargo.toml"
+out=$(bash "$REPO_ROOT/scripts/detect-test.sh" "$t")
+assert "Cargo.toml → cargo test" "$out" "cargo test"
+
+t=$(mktmpdir); printf 'test:\n\techo hi\n' > "$t/Makefile"
+out=$(bash "$REPO_ROOT/scripts/detect-test.sh" "$t")
+assert "Makefile with test target → make test" "$out" "make test"
+
+t=$(mktmpdir); echo 'gem "rspec"' > "$t/Gemfile"
+out=$(bash "$REPO_ROOT/scripts/detect-test.sh" "$t")
+assert "Gemfile + rspec → bundle exec rspec" "$out" "bundle exec rspec"
+
+t=$(mktmpdir); echo "defmodule X do end" > "$t/mix.exs"
+out=$(bash "$REPO_ROOT/scripts/detect-test.sh" "$t")
+assert "mix.exs → mix test" "$out" "mix test"
+
+t=$(mktmpdir); echo "{}" > "$t/deno.json"
+out=$(bash "$REPO_ROOT/scripts/detect-test.sh" "$t")
+assert "deno.json → deno test" "$out" "deno test"
+
+# ---------- session-start ----------
+echo "session-start"
+
+t=$(mktmpdir); cd "$t"
+out=$(bash "$REPO_ROOT/hooks/session-start")
+assert_contains "no .sea/ → empty additionalContext" "$out" '"additionalContext":""'
+
+mkdir -p .sea
+cat > .sea/state.json <<'JSON'
+{"mode":"from-scratch","current_phase":2,"total_phases":5,"last_session":"2026-04-14T00:00:00Z","last_commit":"abc123"}
+JSON
+cat > .sea/roadmap.md <<'MD'
+# Project Roadmap
+### Phase 1: setup
+**Status:** done
+### Phase 2: data layer
+**Status:** in-progress
+### Phase 3: ui
+**Status:** pending
+MD
+
+out=$(bash "$REPO_ROOT/hooks/session-start")
+echo "$out" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); assert 'data layer' in d['hookSpecificOutput']['additionalContext'], d" \
+    && { PASS=$((PASS+1)); echo "  ok   session-start with state injects phase name"; } \
+    || { FAIL=$((FAIL+1)); FAILURES+=("session-start with state injects phase name"); echo "  FAIL session-start with state injects phase name"; }
+
+assert_contains "valid JSON output" "$out" '"hookEventName":"SessionStart"'
+assert_contains "mode in context" "$out" "from-scratch"
+assert_contains "Phase 2 of 5" "$out" "Phase 2 of 5"
+
+cd "$REPO_ROOT"
+
+# ---------- auto-qa ----------
+echo "auto-qa"
+
+t=$(mktmpdir); cd "$t"
+out=$(echo '{}' | bash "$REPO_ROOT/hooks/auto-qa"; echo "EXIT:$?")
+assert_contains "no marker → exit 0 silently" "$out" "EXIT:0"
+assert_contains "no marker → no JSON output" "$out" "^EXIT"
+
+mkdir -p .sea
+echo 0 > .sea/.needs-verify
+out=$(echo '{}' | bash "$REPO_ROOT/hooks/auto-qa"; echo "EXIT:$?")
+assert_contains "marker but no test runner → auto-pass exit 0" "$out" "EXIT:0"
+[ ! -f .sea/.needs-verify ] && { PASS=$((PASS+1)); echo "  ok   marker cleared after auto-pass"; } \
+                             || { FAIL=$((FAIL+1)); FAILURES+=("marker cleared after auto-pass"); echo "  FAIL marker cleared after auto-pass"; }
+
+# Failing test
+mkdir -p .sea
+echo 0 > .sea/.needs-verify
+echo '{"scripts":{"test":"false"}}' > package.json
+out=$(echo '{}' | bash "$REPO_ROOT/hooks/auto-qa")
+assert_contains "failing test → block decision" "$out" '"decision":"block"'
+attempts=$(cat .sea/.needs-verify)
+assert "retry counter incremented" "$attempts" "1"
+
+# Second failure: counter to 2
+out=$(echo '{}' | bash "$REPO_ROOT/hooks/auto-qa")
+assert_contains "second failure still blocks" "$out" '"decision":"block"'
+attempts=$(cat .sea/.needs-verify)
+assert "retry counter at 2" "$attempts" "2"
+
+# Third failure with stop_hook_active=true → give up
+out=$(echo '{"stop_hook_active":true}' | bash "$REPO_ROOT/hooks/auto-qa")
+[ ! -f .sea/.needs-verify ] && { PASS=$((PASS+1)); echo "  ok   give up after 2 retries clears marker"; } \
+                             || { FAIL=$((FAIL+1)); FAILURES+=("give up clears marker"); echo "  FAIL give up clears marker"; }
+
+cd "$REPO_ROOT"
+
+# ---------- state-tracker ----------
+echo "state-tracker"
+
+t=$(mktmpdir); cd "$t"
+out=$(bash "$REPO_ROOT/hooks/state-tracker" file-touched; echo "EXIT:$?")
+assert_contains "no state.json → no-op exit 0" "$out" "EXIT:0"
+
+mkdir -p .sea
+echo '{"mode":"from-scratch","current_phase":1}' > .sea/state.json
+bash "$REPO_ROOT/hooks/state-tracker" file-touched
+last_edit=$(jq -r '.last_edit // ""' .sea/state.json)
+[ -n "$last_edit" ] && { PASS=$((PASS+1)); echo "  ok   last_edit field set"; } \
+                    || { FAIL=$((FAIL+1)); FAILURES+=("last_edit field set"); echo "  FAIL last_edit field set"; }
+
+mode=$(jq -r '.mode' .sea/state.json)
+assert "existing fields preserved" "$mode" "from-scratch"
+
+cd "$REPO_ROOT"
+
+# ---------- summary ----------
+echo
+echo "Results: $PASS passed, $FAIL failed"
+if [ "$FAIL" -gt 0 ]; then
+    echo
+    echo "Failures:"
+    for f in "${FAILURES[@]}"; do echo "  - $f"; done
+    exit 1
+fi
+exit 0

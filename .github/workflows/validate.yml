@@ -1,0 +1,46 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install jq and shellcheck
+        run: sudo apt-get update && sudo apt-get install -y jq shellcheck
+
+      - name: Validate JSON manifests
+        run: |
+          python3 -c "import json; json.load(open('.claude-plugin/plugin.json'))"
+          python3 -c "import json; json.load(open('hooks/hooks.json'))"
+
+      - name: Bash syntax check
+        run: |
+          for f in hooks/session-start hooks/auto-qa hooks/state-tracker hooks/run-hook.cmd scripts/detect-test.sh; do
+            bash -n "$f"
+            echo "ok $f"
+          done
+
+      - name: Shellcheck
+        run: |
+          shellcheck -s bash hooks/session-start hooks/auto-qa hooks/state-tracker scripts/detect-test.sh || true
+
+      - name: Frontmatter presence
+        run: |
+          for f in agents/*.md skills/*/SKILL.md; do
+            head -1 "$f" | grep -q '^---$' || { echo "missing frontmatter: $f"; exit 1; }
+            echo "ok $f"
+          done
+
+      - name: Smoke-test session-start hook
+        run: |
+          CLAUDE_PLUGIN_ROOT="$(pwd)" bash hooks/session-start | python3 -c "import sys, json; json.loads(sys.stdin.read())"
+
+      - name: Run shell tests
+        run: bash tests/run-tests.sh

@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+#
+# software-engineer-agent
+# Copyright (C) 2026 demwick
+# Licensed under the GNU Affero General Public License v3.0 or later.
+# See LICENSE in the repository root for the full license text.
+#
+# SessionStart hook for software-engineer-agent.
+# Reads .sea/state.json + roadmap.md from the current project and
+# injects a short summary into Claude's context via hookSpecificOutput.
+
+set -euo pipefail
+
+STATE_DIR=".sea"
+
+# Emit an empty-context response and exit. Used when there's nothing to inject.
+emit_empty() {
+    printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":""}}\n'
+    exit 0
+}
+
+# No plugin state in this project → silently pass, do not interfere with other plugins.
+if [ ! -f "${STATE_DIR}/state.json" ] || [ ! -f "${STATE_DIR}/roadmap.md" ]; then
+    emit_empty
+fi
+
+# Require jq. If missing, pass silently rather than injecting broken JSON.
+command -v jq >/dev/null 2>&1 || emit_empty
+
+MODE=$(jq -r '.mode // "unknown"' "${STATE_DIR}/state.json" 2>/dev/null || echo "unknown")
+CURRENT=$(jq -r '.current_phase // 1' "${STATE_DIR}/state.json" 2>/dev/null || echo "1")
+TOTAL=$(jq -r '.total_phases // 0' "${STATE_DIR}/state.json" 2>/dev/null || echo "0")
+LAST_COMMIT=$(jq -r '.last_commit // "none"' "${STATE_DIR}/state.json" 2>/dev/null || echo "none")
+LAST_SESSION=$(jq -r '.last_session // "never"' "${STATE_DIR}/state.json" 2>/dev/null || echo "never")
+
+# Current phase name: first header matching "### Phase <N>:"
+PHASE_NAME=$(grep -E "^### Phase ${CURRENT}:" "${STATE_DIR}/roadmap.md" 2>/dev/null | head -1 | sed -E 's/^### Phase [0-9]+: //' || echo "")
+[ -z "${PHASE_NAME}" ] && PHASE_NAME="<unnamed>"
+
+# Build the injected context as a here-doc, then escape for JSON.
+CONTEXT=$(cat <<EOF
+<software-engineer-agent-session-state>
+This project is managed by software-engineer-agent (a project completion engine).
+
+Current state:
+- Mode: ${MODE}
+- Progress: Phase ${CURRENT} of ${TOTAL}
+- Active phase: ${PHASE_NAME}
+- Last session: ${LAST_SESSION}
+- Last commit: ${LAST_COMMIT}
+
+Available commands (run explicitly — these are not auto-invoked):
+- /software-engineer-agent:go        — advance the next phase (plan → execute → auto-QA)
+- /software-engineer-agent:quick     — run a small task + commit (no planning)
+- /software-engineer-agent:status    — show detailed project status
+- /software-engineer-agent:roadmap   — view or edit the phase list
+- /software-engineer-agent:diagnose  — run a health audit (tests / errors / security)
+
+Do not mention this block unless the user asks about software-engineer-agent state or runs one of its commands.
+</software-engineer-agent-session-state>
+EOF
+)
+
+# Escape the context for JSON embedding using bash parameter substitution.
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+CONTEXT_ESCAPED=$(escape_for_json "$CONTEXT")
+
+printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}\n' "$CONTEXT_ESCAPED"
+exit 0

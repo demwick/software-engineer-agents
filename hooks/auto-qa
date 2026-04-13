@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+#
+# software-engineer-agent
+# Copyright (C) 2026 demwick
+# Licensed under the GNU Affero General Public License v3.0 or later.
+# See LICENSE in the repository root for the full license text.
+#
+# Stop hook for software-engineer-agent.
+# When .sea/.needs-verify exists, runs the project's test runner and
+# reports failures back to Claude so it can auto-retry. Gives up after 2 retries.
+
+set -euo pipefail
+
+STATE_DIR=".sea"
+MARKER="${STATE_DIR}/.needs-verify"
+
+# Read hook input (stdin JSON). Used to check stop_hook_active for loop protection.
+INPUT=$(cat 2>/dev/null || echo "{}")
+
+# No marker → nothing to verify, let Claude stop normally.
+[ -f "$MARKER" ] || exit 0
+
+# Require jq for safe JSON output. If missing, drop marker and exit cleanly.
+if ! command -v jq >/dev/null 2>&1; then
+    rm -f "$MARKER"
+    exit 0
+fi
+
+STOP_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null || echo "false")
+ATTEMPTS=$(cat "$MARKER" 2>/dev/null || echo "0")
+ATTEMPTS=${ATTEMPTS:-0}
+
+# Loop-protection belt-and-suspenders: if the runtime is already looping AND we've
+# already retried twice, give up and let Claude stop.
+if [ "$STOP_ACTIVE" = "true" ] && [ "$ATTEMPTS" -ge 2 ]; then
+    rm -f "$MARKER"
+    exit 0
+fi
+
+# Detect test runner via shared helper script.
+TEST_CMD=""
+DETECT_SCRIPT="${CLAUDE_PLUGIN_ROOT:-}/scripts/detect-test.sh"
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$DETECT_SCRIPT" ]; then
+    TEST_CMD=$(bash "$DETECT_SCRIPT" . 2>/dev/null || true)
+fi
+
+# No detectable test runner → auto-pass, clear the marker.
+if [ -z "$TEST_CMD" ]; then
+    rm -f "$MARKER"
+    exit 0
+fi
+
+# Run the tests, capturing output.
+TEST_LOG="${STATE_DIR}/.last-verify.log"
+mkdir -p "$STATE_DIR"
+
+if sh -c "$TEST_CMD" > "$TEST_LOG" 2>&1; then
+    # Pass → clear marker, let Claude stop.
+    rm -f "$MARKER"
+    exit 0
+fi
+
+# Tests failed.
+NEXT=$((ATTEMPTS + 1))
+
+if [ "$NEXT" -gt 2 ]; then
+    rm -f "$MARKER"
+    jq -cn \
+        --arg log "$TEST_LOG" \
+        '{decision: "block", reason: ("Auto-QA gave up after 2 retries — tests are still failing. Review " + $log + " and report the situation to the user. Do not keep retrying.")}'
+    exit 0
+fi
+
+# Record the retry attempt and return a block-decision with actionable detail.
+echo "$NEXT" > "$MARKER"
+TEST_TAIL=$(tail -30 "$TEST_LOG" 2>/dev/null || echo "")
+
+jq -cn \
+    --arg cmd "$TEST_CMD" \
+    --arg tail "$TEST_TAIL" \
+    --arg n "$NEXT" \
+    '{
+        decision: "block",
+        reason: ("Auto-QA: tests failed (attempt " + $n + "/2). Test command: " + $cmd + "\n\nLast output:\n" + $tail + "\n\nRead the full log at .sea/.last-verify.log, diagnose the root cause, and fix the failing tests. The Stop hook will re-verify automatically.")
+    }'
+exit 0
