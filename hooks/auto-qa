@@ -31,9 +31,12 @@ ATTEMPTS=$(cat "$MARKER" 2>/dev/null || echo "0")
 ATTEMPTS=${ATTEMPTS:-0}
 
 # Loop-protection belt-and-suspenders: if the runtime is already looping AND we've
-# already retried twice, give up and let Claude stop.
+# already retried twice, give up and report the situation to the user.
 if [ "$STOP_ACTIVE" = "true" ] && [ "$ATTEMPTS" -ge 2 ]; then
     rm -f "$MARKER"
+    LAST_LOG="${STATE_DIR}/.last-verify.log"
+    jq -cn --arg log "$LAST_LOG" \
+        '{decision: "block", reason: ("Auto-QA loop-protection tripped after 2 retries — tests are still failing. Review " + $log + " and report the situation to the user. Do not keep retrying.")}'
     exit 0
 fi
 

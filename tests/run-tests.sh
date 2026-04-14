@@ -156,10 +156,12 @@ assert_contains "second failure still blocks" "$out" '"decision":"block"'
 attempts=$(cat .sea/.needs-verify)
 assert "retry counter at 2" "$attempts" "2"
 
-# Third failure with stop_hook_active=true → give up
+# Third failure with stop_hook_active=true → give up AND report
 out=$(echo '{"stop_hook_active":true}' | bash "$REPO_ROOT/hooks/auto-qa")
 [ ! -f .sea/.needs-verify ] && { PASS=$((PASS+1)); echo "  ok   give up after 2 retries clears marker"; } \
                              || { FAIL=$((FAIL+1)); FAILURES+=("give up clears marker"); echo "  FAIL give up clears marker"; }
+assert_contains "give up reports block decision (loop-protection branch)" "$out" '"decision":"block"'
+assert_contains "give up reason mentions loop-protection" "$out" "loop-protection"
 
 cd "$REPO_ROOT"
 
