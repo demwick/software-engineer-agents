@@ -264,6 +264,18 @@ They each fill a different slot:
 
 The differentiator SEA alone ships: **project health audit → priority actions → phased roadmap → atomic implementation → auto-QA loop → 5-axis review → pre-ship gate**, all driven by a single `/sea-go` command with zero configuration.
 
+## Acknowledgments
+
+SEA is built from scratch — every line of code, prompt, and script in this repository is original work. No files were copied from other projects. However, several patterns were studied while designing SEA, and it's intellectually honest to note where ideas came from:
+
+- **[addyosmani/agent-skills](https://github.com/addyosmani/agent-skills)** — the 5-axis code review framework (correctness/readability/architecture/security/performance), the stop-the-line debugging discipline, the Prove-It bug-fix pattern (failing test commit first, then fix), and the pre-ship multi-category checklist concept shaped SEA's `reviewer.md`, `debugger.md`, `executor.md`'s Prove-It rule, and `/sea-ship`. The `agents/_common.md` operating-behaviors constitution (surface assumptions, manage confusion, push back, enforce simplicity, stop-the-line) is modeled on their `using-agent-skills` meta-skill.
+- **[anthropics/skills](https://github.com/anthropics/skills)** — the progressive disclosure architecture (SKILL.md + `references/` split), the "pushy description" guidance (Claude tends to under-trigger skills), and the [agentskills.io](https://agentskills.io) spec compliance rules (frontmatter fields, name format, 500-line recommendation) shaped SEA's SKILL.md structure, description rewriting, and CI validation.
+- **[obra/superpowers](https://github.com/obra/superpowers)** — the subagent-driven development pattern and the per-agent `MEMORY.md` convention predate SEA and inform how SEA uses Claude Code's native subagent `memory: project` field.
+
+None of these plugins are dependencies. SEA composes with them at the user's option via standard skill triggering (see "Related plugins" above). Industry-standard concepts like TDD, conventional commits, atomic git commits, and code review aren't attributed here — those predate all of us.
+
+If you notice a pattern in SEA that's missing attribution above, open an issue — intellectual credit is worth the round trip.
+
 ## Contributing
 
 1. Clone the repo: `git clone https://github.com/demwick/software-engineer-agent`
