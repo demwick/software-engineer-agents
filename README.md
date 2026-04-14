@@ -69,8 +69,11 @@ All commands live under the `software-engineer-agent:` namespace. Type `/` in Cl
 | `/sea-roadmap [verb]` | View or edit the phase list | Edits `.sea/roadmap.md` on verbs | Yes |
 | `/sea-undo [target]` | Revert the last phase or quick task via `git revert` | Creates new revert commits | **No** |
 | `/sea-milestone <desc>` | Add a new milestone (extra phases) to a completed project without archiving | Appends to `.sea/roadmap.md`, updates state | **No** |
+| `/sea-review [target]` | 5-axis code review (correctness / readability / architecture / security / performance) | Writes `.sea/phases/phase-N/review.md` | Yes |
+| `/sea-debug [desc]` | Systematic triage — reproduce, hypothesize, test, root cause | Writes `.sea/debug/session-N/` | **No** |
+| `/sea-ship [mode]` | Pre-merge quality gate (tests / lint / typecheck / build / audit / secrets) | Writes `.sea/ship-report.json` | **No** |
 
-Commands with real side-effects (`init`, `go`, `quick`, `undo`, `milestone`) are **user-invocable only** — Claude will not auto-trigger them. Read-only commands (`diagnose`, `status`, `roadmap`) can be called automatically when the context calls for them.
+Commands with real side-effects (`init`, `go`, `quick`, `undo`, `milestone`, `debug`, `ship`) are **user-invocable only** — Claude will not auto-trigger them. Read-only commands (`diagnose`, `status`, `roadmap`, `review`) can be called automatically when the context calls for them.
 
 ### Typical workflows
 

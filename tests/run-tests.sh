@@ -208,6 +208,45 @@ assert "existing fields preserved" "$mode" "from-scratch"
 
 cd "$REPO_ROOT"
 
+# ---------- detect-quality.sh ----------
+echo "detect-quality"
+
+t=$(mktmpdir)
+out=$(bash "$REPO_ROOT/scripts/detect-quality.sh" "$t")
+assert "empty dir → nothing" "$out" ""
+
+t=$(mktmpdir)
+cat > "$t/package.json" <<'JSON'
+{"scripts":{"test":"jest","lint":"eslint .","build":"vite build","typecheck":"tsc --noEmit"}}
+JSON
+touch "$t/tsconfig.json"
+out=$(bash "$REPO_ROOT/scripts/detect-quality.sh" "$t")
+assert_contains "node+ts → test" "$out" "test: npm test"
+assert_contains "node+ts → lint" "$out" "lint: npm run lint"
+assert_contains "node+ts → typecheck" "$out" "typecheck: npm run typecheck"
+assert_contains "node+ts → build" "$out" "build: npm run build"
+assert_contains "node+ts → audit" "$out" "audit: npm audit"
+
+t=$(mktmpdir)
+cat > "$t/package.json" <<'JSON'
+{"scripts":{"test":"vitest"}}
+JSON
+touch "$t/pnpm-lock.yaml"
+out=$(bash "$REPO_ROOT/scripts/detect-quality.sh" "$t")
+assert_contains "pnpm → pnpm test" "$out" "test: pnpm test"
+assert_contains "pnpm → pnpm audit" "$out" "audit: pnpm audit"
+
+t=$(mktmpdir); echo "module x" > "$t/go.mod"
+out=$(bash "$REPO_ROOT/scripts/detect-quality.sh" "$t")
+assert_contains "go → test" "$out" "test: go test ./..."
+assert_contains "go → lint" "$out" "lint: go vet ./..."
+assert_contains "go → build" "$out" "build: go build ./..."
+
+t=$(mktmpdir); echo "[package]" > "$t/Cargo.toml"
+out=$(bash "$REPO_ROOT/scripts/detect-quality.sh" "$t")
+assert_contains "rust → test" "$out" "test: cargo test"
+assert_contains "rust → lint (clippy)" "$out" "lint: cargo clippy"
+
 # ---------- check-host-compat.sh ----------
 echo "check-host-compat"
 
