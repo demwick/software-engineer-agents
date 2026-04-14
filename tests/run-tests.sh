@@ -283,6 +283,32 @@ assert_contains "no args → exit 2" "$out" "EXIT:2"
 
 cd "$REPO_ROOT"
 
+# ---------- archive-state.sh ----------
+echo "archive-state"
+
+t=$(mktmpdir)
+out=$(bash "$REPO_ROOT/scripts/archive-state.sh" --project-dir "$t"; echo "EXIT:$?")
+assert_contains "no .sea → exit 0 silent" "$out" "EXIT:0"
+
+mkdir -p "$t/.sea/phases/phase-1"
+echo '{"schema_version":1}' > "$t/.sea/state.json"
+dest=$(bash "$REPO_ROOT/scripts/archive-state.sh" --project-dir "$t")
+[ -n "$dest" ] && { PASS=$((PASS+1)); echo "  ok   archive path printed"; } \
+               || { FAIL=$((FAIL+1)); FAILURES+=("archive path printed"); echo "  FAIL archive path printed"; }
+[ -d "$dest" ] && { PASS=$((PASS+1)); echo "  ok   archive directory exists"; } \
+               || { FAIL=$((FAIL+1)); FAILURES+=("archive dir exists"); echo "  FAIL archive dir exists"; }
+[ ! -e "$t/.sea" ] && { PASS=$((PASS+1)); echo "  ok   original .sea removed"; } \
+                   || { FAIL=$((FAIL+1)); FAILURES+=("original .sea removed"); echo "  FAIL original .sea removed"; }
+[ -f "$dest/state.json" ] && { PASS=$((PASS+1)); echo "  ok   contents preserved"; } \
+                           || { FAIL=$((FAIL+1)); FAILURES+=("contents preserved"); echo "  FAIL contents preserved"; }
+[ -f "$t/.sea-archive-log" ] && { PASS=$((PASS+1)); echo "  ok   breadcrumb log written"; } \
+                             || { FAIL=$((FAIL+1)); FAILURES+=("breadcrumb log written"); echo "  FAIL breadcrumb log written"; }
+
+# File where dir expected → exit 1
+t2=$(mktmpdir); : > "$t2/.sea"
+out=$(bash "$REPO_ROOT/scripts/archive-state.sh" --project-dir "$t2" 2>&1; echo "EXIT:$?")
+assert_contains ".sea as file → exit 1" "$out" "EXIT:1"
+
 # ---------- summary ----------
 echo
 echo "Results: $PASS passed, $FAIL failed"

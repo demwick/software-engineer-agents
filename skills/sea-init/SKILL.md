@@ -99,7 +99,11 @@ Also add `.sea/` to `.gitignore` (create the file if missing, append if it's the
 
 ## Rules
 
-- **Ask before overwriting.** If `.sea/` already exists and the user wants a fresh init, move the old one to `.sea-archive-<timestamp>/` rather than deleting it.
+- **Ask before overwriting.** If `.sea/` already exists and the user confirms a fresh init, archive the old one via the helper — never `rm -rf`:
+  ```bash
+  bash "${CLAUDE_PLUGIN_ROOT}/scripts/archive-state.sh"
+  ```
+  The script does an atomic `mv` to `.sea-archive-<timestamp>/` and appends a breadcrumb to `.sea-archive-log`. Capture its stdout and tell the user where the old state went.
 - **Do not auto-commit during init.** Creating state files should not produce a git commit. The first commit belongs to the first real phase.
 - **Scaffold only what MVP needs.** No feature-flag frameworks, no analytics SDKs, no optional middleware.
 - **Do not call `executor` here.** Init is planning-only. Execution happens in `/sea-go`.
