@@ -67,8 +67,10 @@ All commands live under the `software-engineer-agent:` namespace. Type `/` in Cl
 | `/sea-diagnose [focus]` | Health audit (tests / errors / security) | Writes `.sea/diagnose.json` | Yes |
 | `/sea-status` | Show current state and progress | Read-only | Yes |
 | `/sea-roadmap [verb]` | View or edit the phase list | Edits `.sea/roadmap.md` on verbs | Yes |
+| `/sea-undo [target]` | Revert the last phase or quick task via `git revert` | Creates new revert commits | **No** |
+| `/sea-milestone <desc>` | Add a new milestone (extra phases) to a completed project without archiving | Appends to `.sea/roadmap.md`, updates state | **No** |
 
-Commands with real side-effects (`init`, `go`, `quick`) are **user-invocable only** — Claude will not auto-trigger them. Read-only commands (`diagnose`, `status`, `roadmap`) can be called automatically when the context calls for them.
+Commands with real side-effects (`init`, `go`, `quick`, `undo`, `milestone`) are **user-invocable only** — Claude will not auto-trigger them. Read-only commands (`diagnose`, `status`, `roadmap`) can be called automatically when the context calls for them.
 
 ### Typical workflows
 

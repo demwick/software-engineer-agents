@@ -23,7 +23,10 @@ Initial argument (may be empty): $ARGUMENTS
 
 Run these checks in order:
 
-1. Is `.sea/` already present? → **state already exists, do NOT overwrite.** Ask the user whether to re-run init (which will archive the old state) or to use `/sea-status` instead. Stop here unless they confirm.
+1. Is `.sea/` already present? → **state already exists, do NOT overwrite.** Offer the user three paths and stop unless they pick one:
+   - **Re-run init** → archive old state to `.sea-archive-<timestamp>/` and start fresh (use when the project direction has fundamentally changed)
+   - **Add a milestone** → run `/sea-milestone "<description>"` instead — preserves history, appends new phases (use when the current milestone shipped and you want a follow-on)
+   - **Just check status** → run `/sea-status` (read-only)
 2. Is the current directory effectively empty? (only README, LICENSE, .git, or nothing) → **Mode A: From-Scratch MVP**
 3. Otherwise → **Mode B: Finish Existing Project**
 
