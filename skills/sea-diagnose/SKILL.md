@@ -91,14 +91,23 @@ Write the report to `.sea/diagnose.json`:
 
 If `.sea/` doesn't exist yet, create it (but do not create `state.json` or `roadmap.md` — those belong to `/sea-init`).
 
-## Step 4: Suggest Next Step
+## Step 4: Suggest Next Step (Deterministic Routing)
 
-End the report with one of:
+Count the `priority_actions` in the report and pick the routing based on size and roadmap state:
 
-- If there's no roadmap yet:
-  > Run `/sea-init` to convert these priorities into a roadmap.
-- If there's already a roadmap:
-  > These findings can be folded into the next phase. Review `.sea/roadmap.md` and decide.
+| Condition | Suggest |
+|-----------|---------|
+| No `.sea/roadmap.md` yet | `/sea-init` — "bootstrap a completion roadmap around these priorities" |
+| Roadmap exists, **1–3** priority actions, all in ≤3 files | `/sea-quick "<first action>"` — single commit fix; mention that further quick runs can handle the others |
+| Roadmap exists, **4+** priority actions, or any action touches >3 files or changes architecture | `/sea-roadmap add "close diagnose findings: <short summary>"` then `/sea-go` — deserves its own phase |
+
+State the routing explicitly in the report footer — do **not** leave the user guessing. Examples:
+
+> 3 priority actions, each small. Run `/sea-quick fix JSON error handling in storage.py` to address the top one, then re-run diagnose.
+
+> 6 priority actions spanning auth, input validation, and rate limiting. Run `/sea-roadmap add "close 6 diagnose findings"` then `/sea-go` — these need a proper phase.
+
+The routing is mechanical: count priority_actions, count affected files, pick. Do not second-guess.
 
 ## Rules
 
