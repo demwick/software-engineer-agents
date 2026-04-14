@@ -74,22 +74,15 @@ Wait for executor to finish. It returns `STATUS: done` or `STATUS: blocked`.
 
 ## Step 6: Arm the Auto-QA Hook
 
-Before your response ends, run this from the project root:
+Before your response ends, arm the auto-QA marker:
 
 ```bash
 mkdir -p .sea && echo 0 > .sea/.needs-verify
 ```
 
-This creates the `.needs-verify` marker file. The `Stop` hook (`hooks/auto-qa`) checks for this marker when your response finishes. If it exists:
+The `Stop` hook (`hooks/auto-qa`) will detect the marker, run the project's test runner, and either clear the marker (pass) or return a `block` decision so Claude auto-fixes (up to 2 retries). Do **not** invoke the verifier agent manually — the hook handles it.
 
-1. The hook auto-detects the project's test runner via `scripts/detect-test.sh`
-2. Runs the tests
-3. On **pass** → clears the marker, Claude stops normally
-4. On **fail** → returns `{"decision": "block", "reason": "..."}`, Claude automatically continues to fix the failures (up to 2 retries, then the hook gives up)
-
-You do NOT invoke the verifier agent manually. The hook handles it. Trust the hook.
-
-If the project has no test runner, the hook auto-passes silently — fine for `/sea-quick` work and very early MVPs.
+For the full protocol — retry counter semantics, host-compat post-check, failure recovery format, test runner detection order — see `references/auto-qa-protocol.md`.
 
 ## Step 7: Update State and Report
 
