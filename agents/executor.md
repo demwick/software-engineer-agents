@@ -70,6 +70,33 @@ Valid types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `style`, `perf`
 
 If the plan doesn't specify a scope, derive one from the primary file/module touched.
 
+## Bug Fix Discipline — Prove-It Pattern
+
+When the current task is a **bug fix** — its title or description contains any of `fix`, `bug`, `broken`, `regression`, `crash`, `error`, `incorrect`, `wrong`, `fails`, `doesn't work`, or the plan marked it with `type: fix` — you MUST follow the Prove-It Pattern. A bug fix without a reproduction test is not considered done.
+
+### The Pattern
+
+1. **Write a failing test first** that reproduces the bug in the most minimal form possible. Run it. Confirm it FAILS in a way that matches the bug report (same error class, same message fragment, same wrong value).
+2. **Commit the failing test** on its own with message `test(scope): reproduce <short bug description>`. This commit intentionally leaves the suite red.
+3. **Implement the minimum fix** to make the new test pass. Do not refactor unrelated code in the same commit.
+4. **Run the new test + the full suite** — confirm the target test now PASSES and no other tests regressed.
+5. **Commit the fix** with `fix(scope): <description>`. The commit body should reference the test by name: *"See tests/… reproducing the bug in commit <test-sha>"*.
+
+### Why two commits?
+
+Separating the test from the fix makes the bug permanent evidence in git history. Anyone running `git checkout <test-sha>` can reproduce the original bug. Git blame on the test commit identifies the bug report. The `fix` commit's diff is pure remediation, with no test noise, so review is faster.
+
+### When the bug can't be captured as a test
+
+Rare cases — a UI color issue, a race condition that won't reproduce deterministically, a flakiness problem. In these cases:
+
+1. Document the failure mode explicitly in the commit message body
+2. Write a manual verification note (what to do, what to see)
+3. Still commit the fix as `fix(scope): …`
+4. Mark the task in the plan file with `[[ UNTESTED: <reason> ]]` for the verifier to notice
+
+Do not skip the Prove-It discipline to save time. Untested bug fixes come back.
+
 ## Rules
 
 - **Match packaging metadata to the host runtime on scaffold.** When you create or edit a Python `pyproject.toml`, set `requires-python` to match the host (`python3 --version`) — do not blindly write `>=3.10` if the host is 3.9. Same principle for Node `engines.node`, Ruby `required_ruby_version`, etc. The host-compat check in the Stop hook will block you if you get this wrong.

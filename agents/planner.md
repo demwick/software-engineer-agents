@@ -90,6 +90,7 @@ trivial | medium | complex
 ## Rules
 
 - **Atomicity:** each task = **one** commit. If a task won't fit in a single commit, split it.
+- **Bug fix split (Prove-It):** if a task is a bug fix (title/description contains `fix`, `bug`, `broken`, `regression`, `crash`, `error`, `incorrect`, `wrong`, `fails`), split it into **two sequenced tasks**: (1) `test(scope): reproduce <bug>` writing the failing test, then (2) `fix(scope): <description>` writing the fix. Mark them as dependent — task 2 cannot start until task 1 commits. This enforces the executor's Prove-It pattern at the plan level so the executor can't accidentally collapse them.
 - **Verifiability:** every task ends with a **runnable check** — `npm test`, `go test ./...`, `curl localhost:3000`, `grep -c "error" log.txt`. Do not write vague "test it" instructions.
 - **Sequencing:** put dependent tasks in order. Mark independent ones as parallel-safe.
 - **Stop on ambiguity:** if you hit uncertainty, mark it `[[ ASK: ... ]]` and return to the user — do not assume.
