@@ -188,19 +188,81 @@ software-engineer-agent/
 
 No Node, Python, or Go runtime required for the plugin itself — only whatever your target project needs.
 
-## Superpowers compatibility
+## Related plugins (compose, don't compete)
 
-`software-engineer-agent` runs side-by-side with [Superpowers](https://github.com/obra/superpowers). Different namespaces (`/software-engineer-agent:*` vs `/superpowers:*`), no conflicts. When Superpowers is installed, the planner agent can suggest `superpowers:writing-plans` for especially large phases — but it doesn't require it.
+SEA is an **orchestration layer** — state, roadmap, atomic commits, auto-QA loop. It's deliberately thin on methodology because three other excellent plugins already cover that space. Install them side-by-side and the planner + executor will auto-hand-off to them when the phase calls for it.
 
-## Competitive positioning
+### The three-layer picture
 
-Why another plugin when Superpowers, GSD, and Aperant exist?
+```
+┌────────────────────────────────────────────────────────────────┐
+│  software-engineer-agent  (you are here)                       │
+│  ORCHESTRATION: state machine, phases, auto-QA, review, ship   │
+│  "what to do next, in what order, atomically committed"        │
+└────────────────────────────────────────────────────────────────┘
+                              │ hands off to
+                              ▼
+┌────────────────────────────────────────────────────────────────┐
+│  addyosmani/agent-skills  (~15k ⭐)                             │
+│  METHODOLOGY: TDD, code review, security, perf, debugging,    │
+│  shipping, frontend, API design, ADRs, CI/CD (20 skills)       │
+│  "how to do this particular kind of engineering work well"     │
+└────────────────────────────────────────────────────────────────┘
 
-- **Superpowers** is a methodology library — rigid pipeline, great discipline, strong skill triggering. It has no project analysis, no complexity routing, and memory is light. `software-engineer-agent` is closer to a project manager: complexity-aware pipeline, memory per agent, active steering to the next action.
-- **GSD** has 20+ commands and a per-workspace config file. `software-engineer-agent` ships 6 commands, zero configuration, and leans on Haiku wherever it can to keep token costs honest.
-- **Aperant** is a desktop app with a Kanban UI and parallel workers. `software-engineer-agent` stays inside Claude Code — no separate UI, no platform install.
+┌────────────────────────────────────────────────────────────────┐
+│  obra/superpowers                                              │
+│  DISCIPLINE: brainstorming, writing-plans, TDD, debugging      │
+│  "structured thought processes before touching code"           │
+└────────────────────────────────────────────────────────────────┘
 
-The differentiator nothing else ships: **health audit → priority actions → roadmap → auto-QA loop**, all driven by a single `/sea-go` command.
+┌────────────────────────────────────────────────────────────────┐
+│  anthropics/skills  (~117k ⭐)                                  │
+│  CAPABILITIES: PDF/DOCX/PPTX/XLSX, MCP builder, webapp testing │
+│  "here's how to handle this specific domain/format"            │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### Installation
+
+```bash
+# Core orchestration
+claude --plugin-dir /path/to/software-engineer-agent
+
+# Methodology library (recommended pairing)
+/plugin marketplace add addyosmani/agent-skills
+/plugin install agent-skills@addy-agent-skills
+
+# Structured thinking (optional)
+/plugin install superpowers@obra
+
+# Domain capabilities (install only what you need)
+/plugin marketplace add anthropics/skills
+/plugin install example-skills@anthropic-agent-skills
+```
+
+### How composition works
+
+When you run `/sea-go` on a phase tagged "security hardening":
+
+1. SEA's `planner` agent writes the plan and appends a hand-off note:
+   > *Hand-off: this phase benefits from `agent-skills:security-and-hardening` if installed.*
+2. SEA's `executor` agent picks up the plan and starts coding
+3. If `agent-skills` is installed, the security skill auto-triggers when the executor mentions auth / secrets / validation, layering its checklist on top of the execution
+4. SEA's `reviewer` agent runs the 5-axis review with the security axis now informed by the external skill's findings
+5. SEA's auto-QA Stop hook fires, tests pass, phase marked done
+
+None of this requires configuration. The plugins compose via standard skill triggering — SEA orchestrates, the others contribute methodology. Namespaces are separate (`/sea-*` vs `/agent-skills:*` vs `/superpowers:*`), so there are no command conflicts.
+
+### Why SEA and not one of the others?
+
+They each fill a different slot:
+
+- **Superpowers** is methodology-first — rigid pipeline, strong skill triggering. Great for discipline, but no project analysis, no complexity routing, no cross-phase state, no roadmap. SEA adds the project-manager layer.
+- **GSD** has 20+ commands and a per-workspace config file. SEA ships 11 commands, zero configuration, and leans on Haiku wherever judgment isn't critical.
+- **Aperant** is a desktop app with a Kanban UI. SEA stays inside Claude Code — no platform install, no separate UI.
+- **addyosmani/agent-skills** is pure methodology — doesn't know what phase you're in, doesn't track state, doesn't commit atomically. SEA orchestrates; agent-skills teaches the orchestra how to play.
+
+The differentiator SEA alone ships: **project health audit → priority actions → phased roadmap → atomic implementation → auto-QA loop → 5-axis review → pre-ship gate**, all driven by a single `/sea-go` command with zero configuration.
 
 ## Contributing
 
