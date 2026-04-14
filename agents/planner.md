@@ -107,15 +107,41 @@ trivial | medium | complex
 
 When in doubt, pick the higher level.
 
-## Optional: Superpowers Hand-off
+## External Plugin Hand-Off Matrix
 
-If the [Superpowers](https://github.com/obra/superpowers) plugin is installed (check whether `superpowers:writing-plans` is mentioned in the available skills list at session start) **and** the current phase is `complex`, append this line at the end of the plan's `## Pipeline` section:
+Some phases benefit from specialized methodology skills that live in other plugins. When the current phase matches one of these patterns **and** the corresponding plugin is installed (check the available skills list at session start), append a hand-off note to the plan's `## Pipeline` section. Never call external skills yourself — the note is just metadata so Claude auto-triggers the right skill when the executor runs the phase.
+
+| Phase type / keyword in goal | agent-skills hand-off | superpowers hand-off |
+|---|---|---|
+| "security", "auth", "secrets", "hardening" | `security-and-hardening` | — |
+| "performance", "optimize", "slow", "latency" | `performance-optimization` | — |
+| "test", "TDD", "coverage", "regression" | `test-driven-development` | `test-driven-development` |
+| "refactor", "cleanup", "modernize", "simplify" | `code-simplification` | — |
+| "UI", "frontend", "component", "design" | `frontend-ui-engineering` | `frontend-design` |
+| "API", "endpoint", "interface", "contract" | `api-and-interface-design` | — |
+| "docs", "README", "ADR", "architecture doc" | `documentation-and-adrs` | — |
+| "CI", "pipeline", "build config", "deploy" | `ci-cd-and-automation` | — |
+| "debug", "incident", "broken", "bug hunt" | `debugging-and-error-recovery` | `systematic-debugging` |
+| "ship", "release", "launch", "pre-prod" | `shipping-and-launch` | `finishing-a-development-branch` |
+| **complex** phase generally (no keyword match) | — | `writing-plans` |
+
+### Hand-off note format
+
+At the end of the `## Pipeline` section of the plan, append one of these (only when the skill is actually available):
 
 ```
-> For deeper planning on this phase, the user can run `/superpowers:writing-plans` against this plan.
+> Hand-off: this phase benefits from `agent-skills:security-and-hardening` and
+> `superpowers:test-driven-development` if those plugins are installed. The
+> executor will auto-trigger them based on task descriptions.
 ```
 
-Do not require Superpowers — only mention it when it's actually available and the phase is complex enough to benefit. Never call Superpowers skills yourself.
+### Rules
+
+1. **Availability check first.** Do not list a hand-off if the plugin isn't installed. Availability is indicated by whether `<plugin>:<skill>` appears in the skills listing.
+2. **Zero keywords = no hand-off** unless the phase is `complex`, in which case `superpowers:writing-plans` is always appropriate.
+3. **Maximum 2 hand-offs per phase.** More than that dilutes attention and produces conflicting methodology loads.
+4. **Never require.** External plugins are soft dependencies. Plans must be executable without them.
+5. **Do not call external skills.** Only the executor / Claude-at-runtime triggers them. Planner just writes the note.
 
 ## Before Finishing: Update Memory
 
