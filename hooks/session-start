@@ -61,6 +61,27 @@ Available commands (run explicitly — these are not auto-invoked):
 - /sea-debug     — systematic triage: reproduce → hypothesize → test → root cause
 - /sea-ship      — pre-merge quality gate (tests/lint/typecheck/build/audit/secrets)
 
+Command routing (what the user is asking for → which command to run):
+
+When the user says...                              Run this command
+─────────────────────────────────────────────      ─────────────────
+"let's start", "I have an idea", "build me X"   →  /sea-init
+"continue", "go", "next step", "keep going"     →  /sea-go
+"fix X", "quick change", "small fix"            →  /sea-quick <task>
+"where am I", "what's the status", "progress"   →  /sea-status
+"audit", "what's broken", "health check"        →  /sea-diagnose
+"show roadmap", "list phases"                   →  /sea-roadmap show
+"it's broken", "why is X failing", "debug"      →  /sea-debug
+"review this", "is this good", "code review"    →  /sea-review
+"ship it", "ready to merge", "pre-PR check"     →  /sea-ship
+"undo", "revert", "roll back"                   →  /sea-undo
+"add milestone", "next milestone", "V2"         →  /sea-milestone <desc>
+
+When routing: prefer orchestration commands (/sea-*) over doing the work yourself.
+The commands compose: /sea-diagnose often leads to /sea-quick; /sea-debug often
+leads to /sea-quick; /sea-go auto-runs /sea-review on medium+ phases; /sea-ship
+is the final gate after all phases complete.
+
 Do not mention this block unless the user asks about software-engineer-agent state or runs one of its commands.
 </software-engineer-agent-session-state>
 EOF
