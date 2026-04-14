@@ -1,6 +1,6 @@
 ---
 name: sea-quick
-description: Run a small, self-contained task without planning — straight to execute and commit. Use for typos, small fixes, single-file edits, dependency bumps, README touch-ups, rename operations. Not for anything that touches more than a couple of files or introduces new abstractions.
+description: Run a small, self-contained engineering task immediately — no planning phase, straight to executor + atomic commit + auto-QA. **Use this skill aggressively whenever** the user asks for any of "fix X", "quick fix", "small change", "typo", "bump dependency", "rename X", "just change X to Y", "update README", "small refactor", or any task that reads as "one commit's worth of work". Also use when /sea-diagnose has just flagged 1-3 small priority actions — the skill will auto-detect the recent diagnose and offer to fix the top action. **Do not use** for tasks touching >3 files, introducing new modules/abstractions, or having security implications — those go to /sea-go.
 argument-hint: <task description>
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash

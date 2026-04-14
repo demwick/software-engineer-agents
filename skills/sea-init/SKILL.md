@@ -1,6 +1,6 @@
 ---
 name: sea-init
-description: Bootstrap a project — works for both blank directories (new MVP from idea) and existing codebases (analyze gaps and build a completion roadmap). Use when the user says "let's start this project", "I have an idea", "analyze this repo", or when no `.sea/` exists yet.
+description: Bootstrap a software project with a phased roadmap — works for both blank directories (new MVP from an idea) and existing codebases (analyze gaps, build a completion roadmap). **Use this skill aggressively whenever** the user says any of "let's start", "I have an idea", "build me a X", "analyze this repo", "finish this project", "plan this out", "what should I build next", or whenever no `.sea/` directory exists yet and the user is describing work to do. Also use when the user wants to add a new milestone after a completed MVP (/sea-milestone also handles that). Do not confuse with Claude Code's built-in /init which creates CLAUDE.md — this one creates a phased roadmap and runtime state.
 argument-hint: [optional project description or goal]
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash

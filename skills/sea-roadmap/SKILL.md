@@ -1,6 +1,6 @@
 ---
 name: sea-roadmap
-description: View or edit the project roadmap — list phases, add a phase, remove a phase, reorder phases, rename a phase. Read or edit the canonical roadmap file. Use when the user wants to see or change the phase list without running /sea-init again.
+description: View or edit the SEA project roadmap — verbs: `show`, `add <desc>`, `remove <N>`, `move <N> <to>`, `rename <N> <new>`. Refuses to modify done phases (they're immutable history). **Use this skill whenever** the user asks any of "show roadmap", "list phases", "add a phase", "remove that phase", "reorder", "rename phase N", "change the plan", or wants to tweak the phase list without re-running /sea-init. Also use when /sea-diagnose surfaces 4+ priority actions that should become their own phase.
 argument-hint: [show | add <description> | remove <N> | move <N> <to> | rename <N> <new-name>]
 allowed-tools: Read, Write, Edit, Glob, Bash
 ---

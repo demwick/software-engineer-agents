@@ -1,6 +1,6 @@
 ---
 name: sea-undo
-description: Roll back the most recent phase or quick task by reverting its commits. Inspects the phase summary or recent git history, lists the commits, asks for confirmation, then runs `git revert` (non-destructive — creates new commits). Use when a phase went wrong and you want a clean rollback without losing history.
+description: Safely roll back a completed phase or a recent /sea-quick commit via `git revert` — non-destructive, creates new revert commits, preserves history. Aborts on conflicts, refuses to revert published-but-unauthorized commits, requires explicit yes. **Use this skill whenever** the user says any of "undo", "revert", "roll back", "take that back", "remove that phase", "that was wrong, undo it", "unship the last change", or after a phase goes sideways and you want a clean rollback without losing history. **Never use** `git reset --hard` or force-push as a fallback — this skill is strictly `git revert` only.
 argument-hint: [phase <N> | last]
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash

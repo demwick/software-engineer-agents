@@ -1,6 +1,6 @@
 ---
 name: sea-diagnose
-description: Generate a project health report covering test coverage, error handling consistency, and basic security posture. Use when the user asks "how is this project doing", "what's broken", "audit this repo", or when you need a baseline before recommending next steps.
+description: Generate a prioritized project health audit across three dimensions — test coverage, error handling consistency, and security posture. Produces a structured report with file:line evidence and ranked priority actions. **Use this skill aggressively whenever** the user asks any of "how is this project doing", "what's broken", "audit this repo", "health check", "quality check", "is this ready", "what should I fix first", "any issues", "is there a bug", or whenever you're about to recommend next steps in a SEA project and want a baseline. Also use proactively after every ~3-5 completed phases to catch quality drift. The skill routes output to /sea-quick or /sea-roadmap deterministically based on finding count.
 argument-hint: [optional focus area — "tests", "security", "errors", or empty for all]
 allowed-tools: Read, Glob, Grep, Bash, Write
 ---

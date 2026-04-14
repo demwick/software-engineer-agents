@@ -1,6 +1,6 @@
 ---
 name: sea-milestone
-description: Extend a completed (or partially completed) project with a new milestone — a fresh chunk of phases for a new direction like "add a web UI" or "close V1.1 gaps". Unlike /sea-init, this does not archive or overwrite state; it appends new phases to the existing roadmap and state.json. Use when the MVP ships and the user wants to plan the next slice without losing history.
+description: Extend a completed (or in-progress) SEA project with a new milestone — a fresh chunk of phases for a new direction like "add a web UI", "V1.1 cleanup", or "migrate to Postgres". Unlike /sea-init which archives old state, this **preserves history** and appends new phases to the existing roadmap. **Use this skill whenever** the user says any of "add a milestone", "next milestone", "V2 of this", "add feature X to the finished project", "plan the next chunk", "extend the roadmap", "what's next after MVP", or whenever the MVP has shipped and the user describes a new direction. Preferred over /sea-init re-run whenever the existing project is a valid foundation.
 argument-hint: <milestone description>
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash

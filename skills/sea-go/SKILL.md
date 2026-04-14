@@ -1,6 +1,6 @@
 ---
 name: sea-go
-description: Advance the project by one phase. Reads the roadmap, picks the next phase, plans it if needed, runs the executor, and lets the Stop hook auto-verify. The main command — users will run this most of the time.
+description: Advance a SEA-managed project by exactly one phase — read roadmap, pick next pending phase, plan it if needed, run executor, let the auto-QA Stop hook verify. **This is the main SEA command** — use it aggressively whenever the user says any of "continue", "go", "next step", "keep going", "advance", "run the next phase", "do the next thing", "work on the project", or whenever the user has a SEA project in progress and wants forward motion. Also the default response when the user says "continue where we left off" in a session with an active .sea/state.json.
 argument-hint: [optional phase number or "next"]
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash

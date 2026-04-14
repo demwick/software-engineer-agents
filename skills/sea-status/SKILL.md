@@ -1,6 +1,6 @@
 ---
 name: sea-status
-description: Show the current project state — active phase, roadmap progress, last session, last commit. Read-only. Use when the user asks "where am I", "what's the status", "what did I do last time", or as a quick check before running /sea-go.
+description: Display the current SEA project state in one screen — active phase, roadmap progress with progress bar, last session timestamp, last commit, last diagnose, last test run, working tree state. Read-only, ~1-second response. **Use this skill aggressively whenever** the user asks any of "where am I", "what's the status", "what did I do last time", "what's going on", "show progress", "how far along", or before recommending next steps in an existing SEA project. Also use at the start of every resumed session to orient yourself before any other action.
 argument-hint: [empty]
 allowed-tools: Read, Glob, Bash
 ---
