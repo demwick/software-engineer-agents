@@ -122,12 +122,16 @@ The plugin is a thin layer over Claude Code's native primitives. No external run
 
 **Subagents** (`agents/*.md`) do the heavy work in isolated contexts:
 
-| Agent | Model | Tools | Memory |
-|-------|-------|-------|--------|
-| `researcher` | Haiku | Read, Glob, Grep, Bash, WebFetch, WebSearch | project |
-| `planner` | Sonnet | Read, Glob, Grep, Bash, WebFetch (no Write) | project |
-| `executor` | Sonnet | Full tools | project |
-| `verifier` | Haiku | Read, Glob, Grep, Bash | project |
+| Agent | Model | Tools | Memory | Called from |
+|-------|-------|-------|--------|-------------|
+| `researcher` | Haiku | Read, Glob, Grep, Bash, WebFetch, WebSearch | project | `/sea-init`, `/sea-diagnose` |
+| `planner` | Sonnet | Read, Glob, Grep, Bash, WebFetch (no Write) | project | `/sea-init`, `/sea-go` |
+| `executor` | Sonnet | Read, Write, Edit, Glob, Grep, Bash, WebFetch | project | `/sea-go`, `/sea-quick` |
+| `verifier` | Haiku | Read, Glob, Grep, Bash | project | `Stop` hook (auto-qa), `/sea-go` |
+| `reviewer` | Sonnet | Read, Glob, Grep, Bash | project | `/sea-review`, `/sea-go` (post auto-QA on medium/complex phases) |
+| `debugger` | Haiku | Read, Glob, Grep, Bash | project | `/sea-debug`, `/sea-go` (on executor `STATUS: blocked`) |
+
+All six agents share `agents/_common.md`, an operating constitution (surface assumptions, manage confusion, push back with evidence, enforce simplicity, stop-the-line, commit discipline) that overrides any task-specific instruction it conflicts with.
 
 Each agent has `memory: project` in its frontmatter — Claude Code's platform manages a per-agent `MEMORY.md` at `.claude/agent-memory/<agent>/`, auto-loaded every invocation. No hand-rolled session persistence. No custom memory-manager agent. No shell scripts for memory.
 
@@ -155,17 +159,25 @@ software-engineer-agent/
 ├── LICENSE                        # AGPL-3.0-or-later
 ├── TESTING.md                     # live-testing checklist
 ├── agents/
+│   ├── _common.md                 # operating constitution shared by all agents
 │   ├── researcher.md              # Haiku, read-only, memory: project
 │   ├── planner.md                 # Sonnet, read-only, memory: project
 │   ├── executor.md                # Sonnet, full tools, memory: project
-│   └── verifier.md                # Haiku, read-only + Bash, memory: project
+│   ├── verifier.md                # Haiku, read-only + Bash, memory: project
+│   ├── reviewer.md                # Sonnet, read-only, memory: project
+│   └── debugger.md                # Haiku, read-only + Bash, memory: project
 ├── skills/
-│   ├── init/SKILL.md              # disable-model-invocation
-│   ├── go/SKILL.md                # disable-model-invocation
-│   ├── quick/SKILL.md             # disable-model-invocation
-│   ├── diagnose/SKILL.md          # auto-invocable
-│   ├── status/SKILL.md            # auto-invocable
-│   └── roadmap/SKILL.md           # auto-invocable
+│   ├── sea-init/SKILL.md          # disable-model-invocation
+│   ├── sea-go/SKILL.md            # disable-model-invocation
+│   ├── sea-quick/SKILL.md         # disable-model-invocation
+│   ├── sea-diagnose/SKILL.md      # auto-invocable
+│   ├── sea-status/SKILL.md        # auto-invocable
+│   ├── sea-roadmap/SKILL.md       # auto-invocable
+│   ├── sea-review/SKILL.md        # auto-invocable
+│   ├── sea-ship/SKILL.md          # disable-model-invocation
+│   ├── sea-debug/SKILL.md         # disable-model-invocation
+│   ├── sea-milestone/SKILL.md     # disable-model-invocation
+│   └── sea-undo/SKILL.md          # disable-model-invocation
 ├── hooks/
 │   ├── hooks.json                 # SessionStart + Stop + PostToolUse registration
 │   ├── run-hook.cmd               # polyglot cross-platform wrapper
@@ -173,9 +185,16 @@ software-engineer-agent/
 │   ├── auto-qa                    # Stop hook, runs tests (extensionless)
 │   └── state-tracker              # PostToolUse hook (extensionless)
 ├── scripts/
-│   └── detect-test.sh             # auto-detects test runner
+│   ├── detect-test.sh             # auto-detects the project's test runner
+│   ├── detect-quality.sh          # detects lint / typecheck / build / audit commands
+│   ├── check-host-compat.sh       # host Python / tool compat post-check for auto-qa
+│   ├── state-update.sh            # safe jq-based `.sea/state.json` writer
+│   └── archive-state.sh           # moves `.sea/` aside for a clean reset
 ├── docs/
-│   └── STATE.md                   # .sea/ reference
+│   ├── STATE.md                   # .sea/ reference
+│   └── specs/                     # refactor specs and companion journals
+├── evals/                         # deterministic CI eval suites (run via evals/run.sh)
+├── tests/run-tests.sh             # unit test entry point for scripts and hooks
 └── examples/state/                # populated sample state for reference
 ```
 
