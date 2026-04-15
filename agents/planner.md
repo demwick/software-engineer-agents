@@ -108,9 +108,28 @@ trivial | medium | complex
   3. ...
 - **Verification:** <how it's tested — exact command, expected output>
 - **Commit:** `type(scope): message`
+- **Allowed paths:** glob1, glob2   *(files executor may create/edit/delete)*
+- **Forbidden paths:** glob3, glob4  *(files executor must NOT touch in this task)*
 
 ### Task 2: ...
 ```
+
+### Per-task scope bounds
+
+Every task must declare its filesystem scope explicitly.
+
+**Allowed paths** are a positive scope: globs the executor may create, edit, or
+delete files within. If scope is truly the whole repo (e.g., a lint sweep), write
+`**` and document why in the Verification field.
+
+**Forbidden paths** are explicit guards: globs the executor must NOT touch even
+if a task "naturally leads" there. They catch the most common scope-creep
+direction for this specific task.
+
+- Empty `Forbidden paths` is allowed and means "no explicit guards"; prefer listing
+  at least one high-risk neighbor.
+- If a task has no `Allowed paths` entry (pre-v2.1.0 plan), the executor treats
+  it as unrestricted with a one-line warning.
 
 ## Rules
 
