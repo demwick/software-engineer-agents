@@ -19,6 +19,22 @@
 
 set -euo pipefail
 
+# MAX_RETRIES rationale: two retries is the sweet spot for typical
+# auto-QA failures (one fix attempt rarely finds the root cause, three
+# turns the hook into a slow brute-force loop). Both the loop-protection
+# give-up branch and the hard give-up branch read this constant so
+# raising it in one place is enough to widen the retry window.
+MAX_RETRIES=2
+
+# TEST_TAIL_LINES rationale: tail -N of the test log is surfaced inside
+# the Stop hook's block-decision reason so Claude gets actionable
+# failure detail without reading the full log. 30 lines fits most stack
+# traces (pytest tracebacks, Jest assertion output, Rust backtrace with
+# `RUST_BACKTRACE=1`) while staying under the Stop hook decision
+# payload budget. If real test suites routinely produce longer stacks,
+# raise this in 10-line steps.
+TEST_TAIL_LINES=30
+
 STATE_DIR=".sea"
 MARKER="${STATE_DIR}/.needs-verify"
 ATTEMPTS_FILE="${STATE_DIR}/.verify-attempts"
@@ -52,11 +68,11 @@ ATTEMPTS=${ATTEMPTS:-0}
 
 # Loop-protection belt-and-suspenders: if the runtime is already looping AND we've
 # already retried twice, give up and report the situation to the user.
-if [ "$STOP_ACTIVE" = "true" ] && [ "$ATTEMPTS" -ge 2 ]; then
+if [ "$STOP_ACTIVE" = "true" ] && [ "$ATTEMPTS" -ge "$MAX_RETRIES" ]; then
     rm -f "$MARKER" "$ATTEMPTS_FILE"
     LAST_LOG="${STATE_DIR}/.last-verify.log"
-    jq -cn --arg log "$LAST_LOG" \
-        '{decision: "block", reason: ("Auto-QA loop-protection tripped after 2 retries — tests are still failing. Review " + $log + " and report the situation to the user. Do not keep retrying.")}'
+    jq -cn --arg log "$LAST_LOG" --arg max "$MAX_RETRIES" \
+        '{decision: "block", reason: ("Auto-QA loop-protection tripped after " + $max + " retries — tests are still failing. Review " + $log + " and report the situation to the user. Do not keep retrying.")}'
     exit 0
 fi
 
@@ -102,11 +118,11 @@ fi
 # Tests failed.
 NEXT=$((ATTEMPTS + 1))
 
-if [ "$NEXT" -gt 2 ]; then
+if [ "$NEXT" -gt "$MAX_RETRIES" ]; then
     rm -f "$MARKER" "$ATTEMPTS_FILE"
     jq -cn \
-        --arg log "$TEST_LOG" \
-        '{decision: "block", reason: ("Auto-QA gave up after 2 retries — tests are still failing. Review " + $log + " and report the situation to the user. Do not keep retrying.")}'
+        --arg log "$TEST_LOG" --arg max "$MAX_RETRIES" \
+        '{decision: "block", reason: ("Auto-QA gave up after " + $max + " retries — tests are still failing. Review " + $log + " and report the situation to the user. Do not keep retrying.")}'
     exit 0
 fi
 
@@ -114,14 +130,15 @@ fi
 TMP_ATTEMPTS=$(mktemp)
 jq -n --argjson n "$NEXT" '{attempts: $n}' > "$TMP_ATTEMPTS"
 mv "$TMP_ATTEMPTS" "$ATTEMPTS_FILE"
-TEST_TAIL=$(tail -30 "$TEST_LOG" 2>/dev/null || echo "")
+TEST_TAIL=$(tail -"$TEST_TAIL_LINES" "$TEST_LOG" 2>/dev/null || echo "")
 
 jq -cn \
     --arg cmd "$TEST_CMD" \
     --arg tail "$TEST_TAIL" \
     --arg n "$NEXT" \
+    --arg max "$MAX_RETRIES" \
     '{
         decision: "block",
-        reason: ("Auto-QA: tests failed (attempt " + $n + "/2). Test command: " + $cmd + "\n\nLast output:\n" + $tail + "\n\nRead the full log at .sea/.last-verify.log, diagnose the root cause, and fix the failing tests. The Stop hook will re-verify automatically.")
+        reason: ("Auto-QA: tests failed (attempt " + $n + "/" + $max + "). Test command: " + $cmd + "\n\nLast output:\n" + $tail + "\n\nRead the full log at .sea/.last-verify.log, diagnose the root cause, and fix the failing tests. The Stop hook will re-verify automatically.")
     }'
 exit 0
