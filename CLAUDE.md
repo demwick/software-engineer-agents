@@ -7,6 +7,8 @@
 
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 Context for developing the `software-engineer-agent` plugin itself. This file is loaded into every Claude Code session run from inside this repo — keep it short and action-oriented.
 
 ## What this repo is
@@ -63,6 +65,12 @@ bash evals/run.sh
 ```
 
 This is what CI (`.github/workflows/evals.yml`) runs on every pull request.
+
+To run a single eval suite in isolation (each suite is a self-contained bash script under `evals/suites/<group>/<name>.sh`):
+
+```bash
+bash evals/suites/hooks/auto-qa-blocks-on-failing-tests.sh
+```
 
 For live testing in Claude Code, run:
 
