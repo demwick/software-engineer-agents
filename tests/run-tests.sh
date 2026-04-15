@@ -288,7 +288,7 @@ echo "state-update"
 
 t=$(mktmpdir); mkdir -p "$t/.sea"
 cat > "$t/.sea/state.json" <<'JSON'
-{"schema_version":1,"mode":"from-scratch","created":"2026-04-14T00:00:00Z","current_phase":1,"total_phases":5,"last_session":"2026-04-14T00:00:00Z","last_commit":null}
+{"schema_version":2,"mode":"from-scratch","created":"2026-04-14T00:00:00Z","current_phase":1,"total_phases":5,"last_session":"2026-04-14T00:00:00Z","last_commit":null}
 JSON
 
 # Happy path: merge several fields, types preserved.
@@ -302,7 +302,7 @@ assert "merged string stays string" "$sha" "a1b2c3d"
 mode=$(jq -r '.mode' "$t/.sea/state.json")
 assert "required field mode preserved" "$mode" "from-scratch"
 sv=$(jq -r '.schema_version' "$t/.sea/state.json")
-assert "schema_version preserved" "$sv" "1"
+assert "schema_version preserved (v2)" "$sv" "2"
 
 # last_session auto-refresh when not passed.
 ls1=$(jq -r '.last_session' "$t/.sea/state.json")
