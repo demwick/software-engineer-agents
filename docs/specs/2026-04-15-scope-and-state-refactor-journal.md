@@ -162,10 +162,46 @@ This is the permanent record of what was decided at each phase and why.
 - [x] GitHub release `v2.0.0` published.
 - [x] `grep -rn 'sea-ship\|sea-review\|sea-debug\|sea-milestone\|sea-undo' agents/ skills/ hooks/ scripts/ tests/ evals/` → 0 results (verified at Phase 3 exit).
 
-## Post-mortem
+## Post-mortem (2026-04-15 — same-day, single-session refactor)
 
-After v2.0.0 ships, add a short post-mortem section here (1 week later):
-- What went well.
-- What was harder than expected.
-- What should be different next time.
-- Whether the 6 → 3 deferred cut is worth pursuing.
+### What went well
+
+- **Single-session discipline held.** All 8 phases completed in one session with the exit-criteria gate enforced at every transition. No phase was skipped or silently merged.
+- **Eval-first approach.** Every breaking change had at least one new eval suite before the PR. The two-file marker split (Phase 6) shipped with a full-cycle regression eval that now guards against silent regressions in the retry loop.
+- **v1 backward-compat fallback.** Adding the `hooks/auto-qa` integer-content fallback for v1 markers cost 5 lines and eliminated an entire class of "in-flight migration breaks" risk.
+- **Smoke test found real issues immediately.** The researcher agent's first-run analysis of the plugin itself surfaced 3 actionable follow-ups (see below).
+
+### What was harder than expected
+
+- **`hooks/session-start` apostrophe bug (Phase 3).** The `$(cat <<EOF …)` command substitution parsed apostrophes inside the heredoc, crashing bash on `SEA's`. Required a mid-phase fix commit. Root cause: bash parses single quotes inside `$()` command substitution even in heredoc bodies. Rule going forward: avoid apostrophes in `$()` heredoc strings; use `SEA` not `SEA's`.
+- **README agent table "Called from" column exit criterion.** Spec used `├──` regex but final tree lines use `└──`; needed `[├└]──` to get the right count. Minor, but surfaced a pattern worth documenting.
+- **Cross-session context via single-session.** Spec was designed for multi-session (one phase = one fresh session). Single-session mode shifted the gate-keeping burden to the user, which worked, but the spec's "one session per phase" rationale around context drift is real — context was noticeable toward Phase 6-7.
+
+### What should be different next time
+
+- **Pre-bake apostrophe rule into `_common.md`.** Add a "No apostrophes in `$()` heredoc strings" gotcha to `CLAUDE.md` or `_common.md` so future hook edits don't hit the same crash.
+- **Spec exit criteria should use `[├└]` tree-char pattern** in grep examples, not just `├──`.
+- **Live LLM eval harness.** The spec's Phase 2 eval design doc (referenced in `CLAUDE.md`) is still unimplemented. `evals/` covers plumbing; LLM behavior (does the planner actually produce good plans?) has no automated coverage.
+
+### 6 → 3 deferred command cut — worth pursuing?
+
+Defer at least 4 weeks. v2.0.0 narrowed 11 → 6; the 6-command surface needs real-world use before deciding whether `sea-status`, `sea-diagnose`, and `sea-roadmap` should fold into `/sea-go` output. The researcher's live analysis (see below) suggests the current 6 are defensible.
+
+### Follow-up items from v2.0.0 smoke-test researcher analysis
+
+Surfaced by the `researcher` agent running `/sea-init` on the plugin repo immediately after the fresh-clone smoke test (2026-04-15). Logged here for the next iteration.
+
+**Priority 1 — `.needs-verify` truncate on v1 migration**
+- The v1 → v2 schema migration in `scripts/state-update.sh` bumps `schema_version` but does not truncate legacy integer content from `.sea/.needs-verify`. This leaves a confusing diagnostic state: `schema_version = 2` but `.needs-verify` still contains `"0"`. The hook's v1 fallback silently handles it, but a human reading the file may be misled.
+- Fix: after the schema bump write, if `.needs-verify` exists and contains non-empty content, `echo -n > .sea/.needs-verify` (zero-byte it). Or document the behavior explicitly in the per-file detail of `docs/STATE.md`.
+- Complexity: trivial (~5 lines in `state-update.sh` + 1 eval assertion).
+
+**Priority 2 — `sea-go` roadmap writes bypass `state-update.sh`**
+- `/sea-go` writes directly to `.sea/roadmap.md` via `Write`/`Edit` (not through the helper). This is intentional (roadmap is Markdown, not JSON), but the boundary is undocumented. A reader seeing `state-update.sh` referenced everywhere might assume it covers roadmap too.
+- Fix: add a one-line note to `scripts/state-update.sh`'s header and to `CLAUDE.md`'s Gotchas section: "state-update.sh covers state.json only; roadmap.md is written directly by skills and the planner agent."
+- Complexity: docs-only.
+
+**Priority 3 — Plugin namespace length**
+- The namespace prefix `/software-engineer-agent:` is 24 characters. Tab-complete makes it tolerable, but marketplace distribution will surface it. Short alias (e.g. `/sea:`) is worth prototyping before marketplace submission.
+- Fix: see if Claude Code's plugin manifest supports a `shortName` or `alias` field. If not, a top-level alias skill (1-line redirect) is an option.
+- Complexity: unknown — depends on platform support. Do not touch until the marketplace path is clearer.
