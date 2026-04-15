@@ -74,8 +74,8 @@ When the user says...                              Run this command
 "show roadmap", "list phases"                   →  /sea-roadmap show
 "add milestone", "next milestone", "V2"         →  /sea-roadmap add <desc>
 
-When routing: prefer SEA's orchestration commands over doing the work
-yourself. For review / debug / ship / revert work, recommend the
+When routing: prefer SEA orchestration commands over doing the work
+yourself. For review, debug, ship, or revert work, recommend the
 appropriate external skill (agent-skills, superpowers) or native git.
 
 Do not mention this block unless the user asks about software-engineer-agent state or runs one of its commands.
