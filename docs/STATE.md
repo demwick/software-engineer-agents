@@ -224,7 +224,75 @@ In every case the plugin **stops the line rather than guessing**, per `_common.m
 
 > **Sign-off gate.** Phase 6 of the refactor (state consolidation) does not start until the user has re-read this section and explicitly confirmed the scope. See `docs/specs/2026-04-15-scope-and-state-refactor.md:267` and `docs/specs/2026-04-15-scope-and-state-refactor.md:456-461`.
 
-*Placeholder — the simplification opportunities are documented in the second Phase 2 commit. See commit history or the next revision of this document.*
+Five candidates are documented below. Each has a **Recommendation** line that is either *Do in Phase 6*, *Defer* (track but do not execute in v2.0.0), or *Reject* (do not do). Two are recommended for Phase 6; three are deferred to a follow-up state-consolidation pass after v2.0.0 has been lived with.
+
+### Opportunity 1 — Split `.needs-verify` content-as-retry-counter into two files
+
+- **Files affected:** `<project>/.sea/.needs-verify`, new `<project>/.sea/.verify-attempts`. Code: `hooks/auto-qa`, `skills/sea-go/SKILL.md:80`, `skills/sea-quick/SKILL.md:78`, `skills/sea-go/references/auto-qa-protocol.md`, eval fixtures under `evals/fixtures/` and `evals/suites/hooks/auto-qa-*.sh` that `echo` into `.needs-verify` today.
+- **Simplification:** `.needs-verify` becomes an existence-only flag (zero-byte or any content, only its presence is checked). Retry counting moves to a dedicated `.verify-attempts` file written atomically via `jq` to a temp-then-mv. Clears both on success, loop-protection, or host-compat give-up. Removes the `cat $MARKER → integer` overload flagged in `CLAUDE.md:103-104`.
+- **What breaks:**
+  - `hooks/auto-qa:30` `ATTEMPTS=$(cat "$MARKER")` must become a read of `.verify-attempts` with a missing-file default of `0`.
+  - `hooks/auto-qa:94` `echo "$NEXT" > "$MARKER"` must become an atomic `jq`-and-mv into `.verify-attempts`.
+  - The loop-protection branch at `hooks/auto-qa:35` needs to read `.verify-attempts` alongside `stop_hook_active`.
+  - `skills/sea-go/SKILL.md:80` and `skills/sea-quick/SKILL.md:78` must stop writing `0` into `.needs-verify`; they `touch` it instead.
+  - Three eval suites under `evals/suites/hooks/` that inject retry counts into `.needs-verify` via `echo` must be updated to inject into `.verify-attempts`.
+  - The companion doc `skills/sea-go/references/auto-qa-protocol.md` must be updated to describe the two-file scheme.
+- **User-visible behavior change:** none. The Stop-hook retry loop, block reasons, and give-up messages remain bit-identical. The only change is *where* the integer lives.
+- **Migration cost:** ~50 lines of bash across `hooks/auto-qa`, two 1-line edits in the two skills, 3 eval-suite updates, a new migration-regression eval under `evals/suites/state/` or `evals/suites/hooks/`. Total: ~1 working session, mostly eval writing.
+- **Recommendation:** **Do in Phase 6.** This is the refactor review's lead finding and the Phase 6 spec's lead bullet (`docs/specs/2026-04-15-scope-and-state-refactor.md:463-471`). It pairs naturally with the `state.json schema_version` bump to 2 — ship as one BREAKING state-schema change with a single migration path.
+
+### Opportunity 2 — Mark state paths for deleted commands as v1-only in docs
+
+- **Files affected:** `.sea/phases/phase-N/review.md`, `.sea/reviews/ad-hoc-<timestamp>.md`, `.sea/ship-report.json`, `.sea/ship/<category>.log`, `.sea/debug/session-<N>/*.md`. Code: `docs/STATE.md` (this file), `docs/migration/v1-to-v2.md` (created in Phase 8).
+- **Simplification:** These paths have no writer in v2 (their writing skills — `/sea-review`, `/sea-ship`, `/sea-debug` — are deleted in Phase 3). Every new v2 project will never have them. Migrated v1 projects may still contain them and that is fine: v2 readers do not consume them, so they are effectively inert artifacts that `/sea-init --fresh` or manual `rm -rf` can clean up whenever the user chooses. Nothing to migrate — just mark them clearly as "v1-only, deprecated in v2.0.0" in `docs/STATE.md`'s inventory table and the migration guide.
+- **What breaks:** nothing. This opportunity is documentation-only.
+- **Migration cost:** ~10 lines of doc edits. Zero code.
+- **Recommendation:** **Do in Phase 6** (bundle with the schema_version bump). Keep it in the same PR so the migration guide describes the whole state-model delta in one place. Zero code risk, high clarity value.
+
+### Opportunity 3 — Collapse `state.json.total_phases` duplication
+
+- **Files affected:** `<project>/.sea/state.json` (drop `total_phases`), `<project>/.sea/roadmap.md` (sole source of truth). Code: `scripts/state-update.sh` (remove `total_phases` from `REQUIRED`), `skills/sea-init/SKILL.md:77-96`, every reader that currently reads `state.json.total_phases` (cross-ref via `grep -rn 'total_phases'`), plus the cross-file invariant #1 above.
+- **Simplification:** `total_phases` is read from both `state.json` and `roadmap.md` today, and the two can drift. Making `roadmap.md` the sole source — i.e., `total_phases := count of "### Phase N:" headings in roadmap.md` — removes invariant #1 entirely (no more "are these two files in sync?" question) and shrinks `state.json`'s required-field list from 5 to 4.
+- **What breaks:**
+  - `scripts/state-update.sh:91` `REQUIRED` list, its validation exit 4, and all eval suites that assert `state.json.total_phases` is present (at least `evals/suites/state/update-rejects-missing-schema-version.sh` and probably a neighbor).
+  - `skills/sea-init/SKILL.md` must stop writing `total_phases` on create.
+  - Every reader that cited `state.json.total_phases` must switch to parsing `roadmap.md` (adds a ~10-line bash helper or re-uses an existing one).
+  - `docs/STATE.md` invariants section must drop #1 and cite `roadmap.md` as authoritative.
+- **User-visible behavior change:** very small — `/sea-status` reads the same number from a different file. Stale `state.json` files from v1 would need the field stripped on migration (trivial `jq del`).
+- **Migration cost:** ~2 working sessions. Mostly eval rewriting and reader-audit sweeps. Low code risk but high surface area.
+- **Recommendation:** **Defer.** Worth doing but not worth bundling into v2.0.0 alongside the `.needs-verify` split and the command-surface cut. Track as a v2.1 candidate. Revisit after v2.0.0 has been lived in for 2–4 weeks (same cadence as the deferred 6 → 3 command cut).
+
+### Opportunity 4 — Merge `phases/phase-N/progress.json` into `state.json.active_phase`
+
+- **Files affected:** `<project>/.sea/phases/phase-N/progress.json` (delete file), `<project>/.sea/state.json` (add `active_phase: { phase, current_task, completed_tasks, last_commit, updated }` sub-object). Code: `agents/executor.md:29,34,39,54-58`, `skills/sea-go/SKILL.md:59`, `skills/sea-debug/SKILL.md:29`, `skills/sea-undo/SKILL.md:31,89`, the `scripts/state-update.sh` required-field set, and every eval referring to `progress.json`.
+- **Simplification:** Merges one more state file into the canonical `state.json`. Removes invariant #2 ("active progress implies the active phase") because the progress object is nested under the phase that owns it. Simplifies resume logic from "check two files" to "check one field".
+- **What breaks:**
+  - Executor's atomic-write sequence must funnel through `scripts/state-update.sh` (or a new sibling helper) rather than a direct `jq > progress.json`. This is a nontrivial correctness change — the progress file is written on a hot path after every task commit, and the state-update helper currently does schema validation that may be overkill for an inner-loop write.
+  - `/sea-undo` fallback path loses a cheap file-existence test and must parse the JSON structure instead.
+  - `/sea-debug` heuristic ("phase has `progress.json` still present" → "executor was mid-phase and didn't finish cleanly") must be rewritten against `state.json.active_phase.current_task > 0 && active_phase.updated < now - threshold`.
+- **User-visible behavior change:** resume-after-crash still works, but the debug detection heuristic changes shape.
+- **Migration cost:** ~3 working sessions. This is the most invasive opportunity — touches the executor's write path, and the executor is load-bearing. Not a Phase 6 candidate unless the user explicitly wants it.
+- **Recommendation:** **Defer.** Correct direction, wrong time. Track as a v2.2 candidate. Revisit only after the post-v2.0.0 review confirms the `.needs-verify` split landed cleanly and the state-update helper is up to the extra traffic.
+
+### Opportunity 5 — Segregate transient artifacts under `.sea/logs/`
+
+- **Files affected:** `<project>/.sea/.last-verify.log` and `<project>/.sea/phases/phase-N/summary.md.reverted-<timestamp>`. Code: `hooks/auto-qa:37,57,69`, `skills/sea-undo/SKILL.md:88`, plus any reader that cites the old paths (`skills/sea-status/SKILL.md:43`, `skills/sea-debug/SKILL.md:28,47`, `tests/run-tests.sh:191`).
+- **Simplification:** Today, truly ephemeral artifacts (a test-run log, a reverted-summary sibling) sit alongside canonical state inside `.sea/` and `.sea/phases/phase-N/`. Moving them under a dedicated `.sea/logs/` subdirectory makes the distinction between "state" and "logs" visible to a human walking the tree with `ls`. Small comprehension win, zero behavioral change.
+- **What breaks:** about eight path references. One test assertion in `tests/run-tests.sh:191`. No evals unless we add a new one asserting the `.sea/logs/` directory is created.
+- **Migration cost:** ~1 working session, mostly sed-and-review. Trivial migration — on upgrade, the logs are regenerated on the next run so there is no data to move.
+- **Recommendation:** **Defer.** Real improvement but cosmetic. Bundle with whichever future refactor touches `hooks/auto-qa` next. Not worth a dedicated PR.
+
+### Summary
+
+| # | Opportunity | Recommendation | Where |
+|---|---|---|---|
+| 1 | Split `.needs-verify` into flag + counter | **Do** | Phase 6 |
+| 2 | Mark dead-command paths as v1-only in docs | **Do** | Phase 6 |
+| 3 | Drop `state.json.total_phases` duplication | Defer | v2.1 |
+| 4 | Merge `progress.json` into `state.json.active_phase` | Defer | v2.2+ |
+| 5 | Segregate transient artifacts under `.sea/logs/` | Defer | future |
+
+**Phase 6 in-scope:** Opportunities 1 and 2. Everything else is deferred. The user signs off on this list before Phase 6 opens its branch.
 
 ---
 
