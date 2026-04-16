@@ -49,6 +49,8 @@ One row per state artifact. "Optional?" answers *"can this file legitimately be 
 | `.last-verify.log` | `<project>/.sea/.last-verify.log` | `hooks/auto-qa` | `sea-status`, humans reading stderr | Plain text (stdout + stderr of the last test run, optionally followed by a `=== host-compat warning ===` trailer) | — | **Yes** — absent until `auto-qa` runs at least once | Any `auto-qa` run |
 | `phases/phase-N/plan.md` | `<project>/.sea/phases/phase-N/plan.md` | `planner` agent (Mode B) via `/sea-go` | `executor` agent (via `/sea-go`, `/sea-quick`); `sea-status`; `sea-go` (re-read on resume) | Markdown (structured `## Tasks` with `### Task K` subsections) | `## Tasks` section with at least one `### Task` | **Yes** — only present for phases that have been planned; `/sea-go` creates on demand | `/sea-go` on the same phase |
 | `phases/phase-N/progress.json` | `<project>/.sea/phases/phase-N/progress.json` | `executor` agent (one write per successful task commit) | `/sea-go` (resume check); `executor` (next-turn resume) | JSON | `phase`, `current_task`, `completed_tasks[]`, `last_commit`, `updated` | **Yes** — absent for a fresh phase (task 1 not yet done), or after phase completes (deleted) | `/sea-go` on a partially-completed phase writes a new one as work proceeds |
+| `specs/phase-N.md` | `<project>/.sea/specs/phase-N.md` | `planner` agent (Mode B, before plan.md) | `verifier` agent (acceptance criteria diff); `sea-go` (spec validation); `sea-status` (optional display) | Markdown | `## Goal`, `## Acceptance Criteria` (min 2 `- [ ]` items), `## Out of Scope` | **Yes** — absent for pre-v3.1.0 phases or unplanned phases | Re-run planner via `/sea-go` on the same phase |
+| `verification/phase-N.json` | `<project>/.sea/verification/phase-N.json` | `verifier` agent (Act feedback loop) | `hooks/state-tracker` (verification-feedback action); `sea-status`; `sea-go` (Act decision) | JSON | `phase`, `status`, `reason`, `unmet_criteria[]`, `new_findings[]`, `tdd_compliance`, `verified_at` | **Yes** — absent until verifier runs on phase N | Re-run verifier on the phase |
 | `phases/phase-N/summary.md` | `<project>/.sea/phases/phase-N/summary.md` | `/sea-go` at phase completion | `sea-status` | Markdown (free-form with `Completed:`, `Commits:`, `Files touched:`, `Notes:` lines) | `Completed:` timestamp | **Yes** — absent until the phase is `done` | Not auto-recreated |
 | `phases/phase-N/summary.md.reverted-<timestamp>` | same | **v1-only, deprecated in v2.0.0** — was written by the deleted `/sea-undo` skill | Humans only (audit trail) | Markdown (same shape as `summary.md`) | — | **Yes** — no writer in v2; inert artifact in migrated projects | Not regenerated in v2 |
 | `phases/phase-N/review.md` | `<project>/.sea/phases/phase-N/review.md` | **v1-only, deprecated in v2.0.0** — was written by the deleted `reviewer` agent via `/sea-review` or `/sea-go` Step 6.5 | Humans only | Markdown (5-axis structured report) | — | **Yes** — no writer in v2; inert artifact in migrated projects. v2 delegates code review to `addyosmani/agent-skills:code-review`. | Not regenerated in v2 |
@@ -122,6 +124,32 @@ The inventory table above is the index. The per-file sections below answer four 
 - **Reader(s):** `skills/sea-status/SKILL.md:43` (surfaces mtime + tail), `skills/sea-debug/SKILL.md:28,47` (error bait for triage), `tests/run-tests.sh:191` (regression assertion on host-compat warning content).
 - **Missing:** expected before the first Stop-hook run. `/sea-status` omits the last-run line; `/sea-debug` skips the "last auto-QA run failed X minutes ago" nudge.
 - **Corrupted:** not possible in the usual sense — the file is a raw dump of another process's output. Consumers only read it as opaque text (mtime, last ~30 lines, substring match).
+
+### `verification/phase-N.json` (new in v3.1.0)
+
+- **Writer(s):** `agents/verifier.md` writes the structured verification result after checking executor output. Uses `jq` via Bash to write atomically.
+- **Reader(s):**
+  - `hooks/state-tracker` (verification-feedback action) reads the file to update `state.json.last_verification`.
+  - `skills/sea-status/SKILL.md` surfaces the latest verification status.
+  - `skills/sea-go/SKILL.md` reads the file for Act-loop decisions: pass → advance, partial → add tasks, fail → re-plan.
+- **Format:**
+  ```json
+  {
+    "phase": 1,
+    "status": "pass|partial|fail",
+    "reason": "one-sentence summary",
+    "unmet_criteria": ["criterion that was not met"],
+    "new_findings": ["observation for roadmap feedback"],
+    "tdd_compliance": {
+      "compliant": true,
+      "skips": [{"task": 3, "reason": "docs-only"}]
+    },
+    "verified_at": "2026-04-16T01:00:00Z"
+  }
+  ```
+- **Required fields:** `phase`, `status`, `reason`, `unmet_criteria`, `new_findings`, `tdd_compliance`, `verified_at`.
+- **Missing:** expected for phases that have not been verified. No caller crashes on absence.
+- **Corrupted:** `hooks/state-tracker` uses `jq` with defaults — corrupted JSON results in a no-op (exit 0, state.json unchanged).
 
 ### `phases/phase-N/plan.md`
 

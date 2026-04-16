@@ -115,8 +115,12 @@ software-engineer-agents/
 
 ```
 .sea/           # added to .gitignore
-├── state.json          # current_phase, last_session, last_edit
+├── state.json          # current_phase, last_session, last_edit, last_verification
 ├── roadmap.md          # phase list (markdown, human-readable)
+├── specs/              # phase specs with testable acceptance criteria (v3.1.0+)
+│   └── phase-N.md
+├── verification/       # Act feedback loop results (v3.1.0+)
+│   └── phase-N.json
 ├── phases/
 │   ├── phase-1/plan.md
 │   └── phase-1/summary.md
@@ -128,16 +132,23 @@ software-engineer-agents/
 ```
 User: /[name]:go
   ↓
-Skill: read state → planner agent → executor agent
+Skill: read state → planner agent (writes spec + plan)
+  ↓
+Executor: TDD cycle per task (Red → Green → Refactor → Commit)
   ↓
 Executor finishes work (Stop event fires)
   ↓
 Stop hook: type="agent", prompt="run verifier, check tests & plan"
   ↓
-verifier: run tests + check plan → {ok: bool, reason: ...}
+Verifier: run tests + check spec criteria + TDD compliance
+  → writes .sea/verification/phase-N.json
+  → {ok: bool, reason: ...}
   ↓
 ok=false → Claude auto-continues (retry)
-ok=true  → mark phase done, update state, suggest next phase
+ok=true  → Act decision:
+           pass    → mark phase done, advance
+           partial → surface unmet criteria, offer roadmap feedback
+           fail    → block, stay in-progress
 ```
 
 ## Superpowers Compatibility
@@ -151,3 +162,33 @@ ok=true  → mark phase done, update state, suggest next phase
 - Plugin name: resolved — shipped as `software-engineer-agents` in v1.0.0 (v2.0.0 keeps the name)
 - Marketplace distribution: post-V1
 - MCP server: not in V1, optional later
+
+---
+
+## ADR-001: TDD + PDCA Hybrid Development Cycle (v3.1.0)
+
+**Status:** Accepted
+**Date:** 2026-04-16
+
+### Context
+
+The plugin drives software development through agents (planner → executor → verifier) but lacked two things: (1) a discipline that prevents the executor from writing untested code, and (2) a feedback loop that connects verification results back to the roadmap. Classic SDLC models (waterfall, V-model) are too heavyweight for a single-developer AI-assisted workflow.
+
+### Decision
+
+Adopt a two-layer cycle:
+
+- **Inner loop (TDD):** every executor task follows Red → Green → Refactor. Failing test first, minimum implementation, cleanup while green. Bug fixes always produce two commits (test, then fix). Skip-path exists for docs/config via `[[ NO-TEST ]]` marker.
+- **Outer loop (PDCA):** each phase is a Plan-Do-Check-Act iteration.
+  - **Plan:** planner writes `.sea/specs/phase-N.md` (testable acceptance criteria) + `plan.md`
+  - **Do:** executor runs TDD cycles per task
+  - **Check:** verifier produces `.sea/verification/phase-N.json` with pass/partial/fail status, unmet criteria, TDD compliance, new findings
+  - **Act:** `sea-go` reads verification result — pass advances, partial surfaces unmet criteria for roadmap feedback, fail blocks advancement. `state-tracker` hook persists verification metadata to `state.json`.
+
+### Consequences
+
+- Executor prompt is longer (~35 lines added). Token cost increase is negligible — executor runs on Sonnet with long contexts.
+- Verifier now writes a JSON file (previously read-only except Bash). `tools:` allowlist unchanged — it uses `jq` via Bash.
+- New state artifacts: `.sea/specs/`, `.sea/verification/`. Both documented in `docs/STATE.md`.
+- `scripts/spec-validate.sh` and `scripts/validate-commit-msg.sh` added for deterministic validation.
+- Backward compatible: pre-v3.1.0 phases without specs or verification files degrade gracefully with warnings.

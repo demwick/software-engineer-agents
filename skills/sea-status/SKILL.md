@@ -47,6 +47,12 @@ If `.sea/.last-verify.log` exists, read its mtime (file modification time) and t
 
 Never re-run the tests yourself — status is read-only. Stale logs are better than slow status.
 
+If `.sea/verification/phase-<current>.json` exists, read its `status`, `reason`,
+`tdd_compliance.compliant`, and count of `new_findings[]`. Display in the report.
+
+If `state.json` has a `last_verification` object, use it as a fallback when
+the verification file is missing.
+
 ## Step 3: Git Context (Quick)
 
 Run `git log --oneline -3` and `git status --short` to get the last three commits and any uncommitted changes. Fail silently if not a git repo.
@@ -81,6 +87,11 @@ Progress:     <done>/<total> phases complete  [<bar>]
 
 🧪 Last Test Run
   <e.g. "2m ago — pytest: 12 passed"> | "never run"
+
+✅ Verification (Act Loop)
+  Phase <N>: <pass|partial|fail> — <reason>
+  TDD compliant: <yes|no>  |  New findings: <count>
+  <or "no verification yet" if neither file exists>
 
 🔧 Working Tree
   <clean | N files modified, M staged>

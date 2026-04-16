@@ -31,8 +31,35 @@ case "$ACTION" in
             rm -f "$TMP"
         fi
         ;;
+    verification-feedback)
+        # Act feedback loop: read the latest verification result and update state.json.
+        # Called after verifier writes .sea/verification/phase-<N>.json.
+        CURRENT_PHASE=$(jq -r '.current_phase // 0' "$STATE_FILE" 2>/dev/null || echo "0")
+        VERIFY_FILE="${STATE_DIR}/verification/phase-${CURRENT_PHASE}.json"
+        [ -f "$VERIFY_FILE" ] || exit 0
+
+        VSTATUS=$(jq -r '.status // "unknown"' "$VERIFY_FILE" 2>/dev/null || echo "unknown")
+        FINDINGS_COUNT=$(jq -r '.new_findings | length // 0' "$VERIFY_FILE" 2>/dev/null || echo "0")
+        TDD_COMPLIANT=$(jq -r 'if .tdd_compliance.compliant == false then "false" else "true" end' "$VERIFY_FILE" 2>/dev/null || echo "true")
+
+        TMP=$(mktemp)
+        if jq \
+            --arg ts "$NOW" \
+            --arg vstatus "$VSTATUS" \
+            --argjson findings "$FINDINGS_COUNT" \
+            --argjson tdd "$TDD_COMPLIANT" \
+            '.last_verification = {
+                status: $vstatus,
+                new_findings_count: $findings,
+                tdd_compliant: $tdd,
+                verified_at: $ts
+            }' "$STATE_FILE" > "$TMP" 2>/dev/null; then
+            mv "$TMP" "$STATE_FILE"
+        else
+            rm -f "$TMP"
+        fi
+        ;;
     *)
-        # Unknown action — log to stderr (goes to debug log) and exit cleanly.
         echo "software-engineer-agents state-tracker: unknown action '${ACTION}'" >&2
         ;;
 esac

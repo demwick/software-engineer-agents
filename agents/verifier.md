@@ -34,10 +34,12 @@ Read your own `MEMORY.md` first. What's this project's actual test command? How 
 
 ## What You Check
 
-1. **Plan alignment** — did the executor finish every task in the plan? Were any skipped or deviated?
-2. **Tests** — auto-detect the project's test runner and run it. Read the output; do not trust just the exit code.
-3. **Error surface** — broken imports, missing references, unclosed blocks, type errors (use grep, not a full reread)
-4. **Commit hygiene** — one task per commit, no secrets in diffs, commit messages match the plan
+1. **Spec acceptance criteria** — if `.sea/specs/phase-N.md` exists, read it and check each `- [ ]` criterion against the actual project state. Mark each as met or unmet. Unmet criteria go into `unmet_criteria[]` in the verification result. If no spec exists (pre-v3.1.0), skip this check and note it in the report.
+2. **Plan alignment** — did the executor finish every task in the plan? Were any skipped or deviated?
+3. **Tests** — auto-detect the project's test runner and run it. Read the output; do not trust just the exit code.
+4. **TDD compliance** — for each task, check that a test commit precedes or accompanies the implementation. Flag missing tests.
+5. **Error surface** — broken imports, missing references, unclosed blocks, type errors (use grep, not a full reread)
+6. **Commit hygiene** — one task per commit, no secrets in diffs, commit messages match the plan
 
 ## Test Runner Detection
 
@@ -80,11 +82,64 @@ Before the JSON, include a short human-readable summary:
 ## Verification Report
 - Plan alignment: ✅ / ❌ <detail>
 - Tests: ✅ / ❌ <command, pass/fail, counts>
+- TDD compliance: ✅ / ❌ <detail>
 - Errors: ✅ / ❌ <detail>
 - Commits: ✅ / ❌ <detail>
 
 {"ok": <bool>, "reason": "..."}
 ```
+
+## Verification Result File (Act Feedback)
+
+After producing the human-readable report, write a structured verification
+result to `.sea/verification/phase-<N>.json` so the Act feedback loop can
+update state and roadmap. Use `jq` via Bash (you have Bash access):
+
+```bash
+mkdir -p .sea/verification
+jq -n \
+  --argjson phase "$PHASE" \
+  --arg status "<pass|partial|fail>" \
+  --arg reason "<one-sentence summary>" \
+  --argjson unmet '["criterion 1", "criterion 2"]' \
+  --argjson findings '["new finding 1"]' \
+  --argjson tdd '{"compliant": true, "skips": []}' \
+  --arg ts "$(date -u +%FT%TZ)" \
+  '{
+    phase: $phase,
+    status: $status,
+    reason: $reason,
+    unmet_criteria: $unmet,
+    new_findings: $findings,
+    tdd_compliance: $tdd,
+    verified_at: $ts
+  }' > .sea/verification/phase-${PHASE}.json
+```
+
+### Status values
+
+- **pass** — all plan tasks done, tests green, TDD followed, no regressions
+- **partial** — tests pass but some acceptance criteria unmet or TDD skipped
+  without `[[ NO-TEST ]]` marker
+- **fail** — tests fail, or critical plan tasks missing
+
+### TDD compliance check
+
+When checking executor output, verify TDD discipline was followed:
+- For each non-exempt task, confirm a test commit precedes or accompanies the
+  implementation commit
+- Tasks with `TDD-SKIP: <reason>` are noted in `tdd_compliance.skips[]`
+- If a task lacks both a test and a `TDD-SKIP` marker, flag it as non-compliant
+
+### `new_findings[]`
+
+Observations that should feed back into the roadmap — things the executor
+discovered but couldn't address within the current phase scope. Examples:
+- "Deno runtime not detected by detect-test.sh"
+- "Login endpoint has no rate limiting"
+- "Test coverage dropped below 60%"
+
+These get picked up by the state-tracker hook and surfaced in `/sea-status`.
 
 ## Rules
 

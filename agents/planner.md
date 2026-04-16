@@ -85,7 +85,43 @@ Split the roadmap into 3-7 phases. Each phase should be 2-5 days of solo-dev wor
 
 Take a single phase from the roadmap and convert it into executable steps.
 
-**Output** — `.sea/phases/phase-N/plan.md`:
+**Output** — two files:
+
+1. `.sea/specs/phase-N.md` — the spec (intent + acceptance criteria)
+2. `.sea/phases/phase-N/plan.md` — the executable plan (tasks)
+
+#### Spec file — `.sea/specs/phase-N.md`
+
+Write this BEFORE the plan. The spec captures intent and testable acceptance
+criteria that the verifier checks in the Act feedback loop.
+
+```markdown
+# Phase N Spec: <name>
+
+## Goal
+<one sentence: what this phase delivers>
+
+## Acceptance Criteria
+- [ ] <testable criterion 1 — must be verifiable by a command or test>
+- [ ] <testable criterion 2>
+- [ ] <testable criterion 3>
+
+## Out of Scope
+- <explicit exclusion 1>
+- <explicit exclusion 2>
+
+## Dependencies
+- Phase <X> must be complete
+- External: <library, API, etc.>
+```
+
+Rules for acceptance criteria:
+- Every criterion must be **testable** — "works correctly" is banned; "GET /api/users returns 200 with a JSON array" is valid
+- Minimum 2 criteria per spec, maximum 10
+- Each criterion maps to at least one task in the plan
+- The verifier uses these criteria to determine pass/partial/fail in the Act loop
+
+#### Plan file — `.sea/phases/phase-N/plan.md`
 
 ```markdown
 # Phase N Plan: <name>

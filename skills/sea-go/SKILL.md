@@ -35,10 +35,19 @@ Show the user: *"Starting Phase N: <name>"* before continuing.
 
 ## Step 3: Plan the Phase (if no plan yet)
 
-Check `.sea/phases/phase-N/plan.md`.
+Check `.sea/phases/phase-N/plan.md` and `.sea/specs/phase-N.md`.
 
-- **Plan exists** → read it, skip to Step 4.
-- **No plan** → launch the `planner` agent in **Mode B (Phase Planning)**. Pass the roadmap entry for Phase N as context. The planner writes `.sea/phases/phase-N/plan.md`.
+- **Both exist** → read both, skip to Step 4.
+- **Plan exists but no spec** → pre-v3.1.0 plan. Emit warning: *"WARNING: no spec file for Phase N (pre-v3.1.0). Act feedback loop will run without acceptance criteria diff."* Skip to Step 4.
+- **Neither exists** → launch the `planner` agent in **Mode B (Phase Planning)**. Pass the roadmap entry for Phase N as context. The planner writes `.sea/specs/phase-N.md` first, then `.sea/phases/phase-N/plan.md`.
+
+After the planner finishes, validate the spec:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/spec-validate.sh" ".sea/specs/phase-${N}.md"
+```
+
+If validation fails, surface the error to the user and stop. Do not proceed with an invalid spec.
 
 Read the plan. If it contains any `[[ ASK: ... ]]` markers, surface those questions to the user and stop. Do not guess.
 
@@ -139,9 +148,50 @@ For the full protocol — retry counter semantics, host-compat post-check, failu
 
 v2.0.0 removed the internal reviewer in favor of composition. After auto-QA passes, if `addyosmani/agent-skills:code-review` is installed, note its availability in the phase summary report so the user can opt in. Do **not** invoke a reviewer agent directly — SEA no longer owns a reviewer in v2.0.0. If no external review skill is installed, skip this step silently.
 
-## Step 7: Update State and Report
+## Step 7: Act Decision (Verification Feedback Loop)
 
-On verifier success:
+After auto-QA passes, check for the verification result file:
+
+```bash
+VERIFY_FILE=".sea/verification/phase-${N}.json"
+```
+
+### 7a: No verification file
+
+If the file doesn't exist (verifier didn't produce one, or pre-v3.1.0 flow),
+skip the Act loop and proceed directly to Step 7d (Update State).
+
+### 7b: Read verification status
+
+```bash
+VSTATUS=$(jq -r '.status' "$VERIFY_FILE")
+```
+
+**Three paths based on `status`:**
+
+| Status | Action |
+|--------|--------|
+| **pass** | Proceed to Step 7d (Update State). Phase is done. |
+| **partial** | Read `unmet_criteria[]`. Surface them to the user with: *"Phase N tests pass but <count> acceptance criteria unmet: <list>. Add follow-up tasks to the roadmap? (yes/skip)"*. If user says yes → append unmet items as new tasks to the next pending phase or create a new phase via `/sea-roadmap`. Then proceed to 7d. |
+| **fail** | Do NOT advance the phase. Surface the `reason` to the user: *"Verification failed: <reason>. The phase stays in-progress."* Stop. The user should fix and re-run `/sea-go`. |
+
+### 7c: Process new findings
+
+Read `new_findings[]` from the verification file. For each finding:
+- Append it as a bullet under a `## Findings` section in `.sea/phases/phase-N/summary.md`
+- If the finding looks actionable (mentions a missing feature, coverage drop, or
+  unhandled edge case), suggest adding it to the roadmap: *"New finding: '<text>'.
+  Add to roadmap? (yes/skip)"*
+
+Trigger the state-tracker to persist verification metadata:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/hooks/state-tracker" verification-feedback
+```
+
+### 7d: Update State and Report
+
+On verification pass (or no verification file):
 
 1. Update `.sea/state.json` via the `state-update.sh` helper — **never write state.json directly with Write/Edit**. The helper jq-merges, preserves required fields (`schema_version`, `mode`, `created`), auto-refreshes `last_session`, and validates the result:
    ```bash
