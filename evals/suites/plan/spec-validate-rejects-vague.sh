@@ -53,7 +53,7 @@ cat > "$TMPDIR/few-criteria.md" << 'SPEC'
 Do one thing.
 
 ## Acceptance Criteria
-- [ ] only one criterion
+- only one criterion
 
 ## Out of Scope
 - everything else
@@ -61,6 +61,24 @@ SPEC
 
 assert_exit_code 3 bash "$REPO_ROOT/scripts/spec-validate.sh" "$TMPDIR/few-criteria.md"
 echo "PASS: too few criteria rejected"
+
+# Test 3b: AC-style criteria accepted
+cat > "$TMPDIR/ac-style.md" << 'SPEC'
+# Phase 1 Spec: AC Style
+
+## Goal
+Test AC format.
+
+## Acceptance Criteria
+- AC1: first criterion passes some check
+- AC2: second criterion passes another check
+
+## Out of Scope
+- nothing
+SPEC
+
+bash "$REPO_ROOT/scripts/spec-validate.sh" "$TMPDIR/ac-style.md" >/dev/null
+echo "PASS: AC-style criteria accepted"
 
 # Test 4: vague criteria → exit 4
 cat > "$TMPDIR/vague.md" << 'SPEC'
@@ -70,8 +88,8 @@ cat > "$TMPDIR/vague.md" << 'SPEC'
 Make it work.
 
 ## Acceptance Criteria
-- [ ] the feature works correctly
-- [ ] users can log in
+- the feature works correctly
+- users can log in
 
 ## Out of Scope
 - nothing
