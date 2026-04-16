@@ -140,7 +140,7 @@ mkdir -p .sea && : > .sea/.needs-verify
 
 Do **not** write a number into `.needs-verify`; the hook no longer reads it. Do **not** create `.verify-attempts` yourself either — the hook owns it. Just touch the marker.
 
-The `Stop` hook (`hooks/auto-qa`) will detect the marker, run the project's test runner, and either clear both files (pass) or return a `block` decision and bump `.verify-attempts` so Claude auto-fixes (up to 2 retries). Do **not** invoke the verifier agent manually — the hook handles it.
+The `Stop` hook (`hooks/auto-qa`) will detect the marker, run the project's test runner, and either clear both files (pass) or return a `block` decision and bump `.verify-attempts` so Claude auto-fixes (up to 2 retries). On test pass, the hook also runs `scripts/verify-phase.sh` which reads the spec file, checks TDD commit patterns, and writes `.sea/verification/phase-N.json` for the Act feedback loop (Step 7). Do **not** invoke the verifier agent manually — the hook handles it.
 
 For the full protocol — retry counter semantics, host-compat post-check, failure recovery format, test runner detection order — see `references/auto-qa-protocol.md`.
 

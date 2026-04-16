@@ -127,7 +127,7 @@ The inventory table above is the index. The per-file sections below answer four 
 
 ### `verification/phase-N.json` (new in v3.1.0)
 
-- **Writer(s):** `agents/verifier.md` writes the structured verification result after checking executor output. Uses `jq` via Bash to write atomically.
+- **Writer(s):** `scripts/verify-phase.sh` writes the structured verification result after tests pass. Called by `hooks/auto-qa` on the test-pass path. The verifier agent can also write this file for richer LLM-based criteria checking.
 - **Reader(s):**
   - `hooks/state-tracker` (verification-feedback action) reads the file to update `state.json.last_verification`.
   - `skills/sea-status/SKILL.md` surfaces the latest verification status.
