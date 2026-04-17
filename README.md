@@ -39,6 +39,41 @@ Straight to execute and commit. No planning overhead.
 
 ---
 
+## How `/sea-go` works
+
+Every phase runs a **PDCA (Plan-Do-Check-Act) macro-cycle** driven by four specialist agents. Inside each task, the executor enforces a **TDD (Test-Driven Development) micro-cycle** — no exceptions.
+
+```mermaid
+flowchart LR
+    subgraph phase ["/sea-go — one phase"]
+        direction LR
+        planner["🗂️ planner\nspec + plan.md"]
+        executor["⚙️ executor\ntask loop"]
+        verifier["🔍 verifier\nStop hook\npass ✓ / fail → retry"]
+        feedback["📊 feedback\n→ next phase"]
+
+        planner -- "PLAN" --> executor
+        executor -- "DO" --> verifier
+        verifier -- "CHECK → ACT" --> feedback
+        verifier -. "fail" .-> executor
+    end
+
+    subgraph tdd ["TDD micro-cycle (per task)"]
+        direction TB
+        red["🔴 Red\nwrite failing test"]
+        green["🟢 Green\nminimal code to pass"]
+        refactor["🔵 Refactor\nclean up"]
+        commit["📦 Commit\none atomic commit"]
+        red --> green --> refactor --> commit
+    end
+
+    executor -. "each task" .-> tdd
+```
+
+The Stop hook is the quality gate: if tests fail after a commit, it blocks the turn, surfaces the failure reason, and forces a fix before Claude can continue. Up to 2 auto-retries — then it escalates to you.
+
+---
+
 ## Commands
 
 | Command | What it does |
